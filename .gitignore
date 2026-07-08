@@ -1,0 +1,20 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+*.log
+.env
+.env.*
+.idea/
+
+# Local governed runtime state
+.project-ananke/**/*.sqlite
+.project-ananke/**/*.sqlite-*
+.project-ananke/**/*.db
+.project-ananke/**/*.db-*
+.project-ananke/almanac/journal/*
+.project-ananke/almanac/context-packs/*
+.project-ananke/almanac/snapshots/*
+.project-ananke/almanac/conflicts/*
+.project-ananke/almanac/quarantine/*
+!.project-ananke/**/.gitkeep

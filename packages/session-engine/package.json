@@ -1,0 +1,25 @@
+{
+  "name": "@mnemosyne/session-engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Session lifecycle orchestration scaffold",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@mnemosyne/schema": "*",
+    "@mnemosyne/audit-engine": "*",
+    "@mnemosyne/retrieval-engine": "*"
+  }
+}

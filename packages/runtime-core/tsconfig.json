@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../schema" },
+    { "path": "../audit-engine" },
+    { "path": "../almanac-store" },
+    { "path": "../onboarding-engine" },
+    { "path": "../retrieval-engine" },
+    { "path": "../session-engine" },
+    { "path": "../workspace-guard" }
+  ]
+}

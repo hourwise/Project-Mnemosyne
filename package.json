@@ -1,0 +1,31 @@
+{
+  "name": "mnemosyne",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Project Mnemosyne - governed memory and context runtime for AI agents",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint packages --ext .ts",
+    "format": "prettier --write .",
+    "dev:runtime": "npm run dev -w @mnemosyne/runtime-core",
+    "dev:cli": "npm run dev -w @mnemosyne/cli",
+    "test:bench": "npm run bench -w @mnemosyne/testbench",
+    "demo:basic": "npm run build && npx tsx examples/basic-almanac/index.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.3.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  },
+  "dependencies": {
+    "zod": "^3.23.0"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/schema" },
+    { "path": "./packages/audit-engine" },
+    { "path": "./packages/almanac-store" },
+    { "path": "./packages/workspace-guard" },
+    { "path": "./packages/scoring-engine" },
+    { "path": "./packages/onboarding-engine" },
+    { "path": "./packages/memory-ingest-engine" },
+    { "path": "./packages/reliability-engine" },
+    { "path": "./packages/retrieval-engine" },
+    { "path": "./packages/conflict-engine" },
+    { "path": "./packages/decay-engine" },
+    { "path": "./packages/source-map-engine" },
+    { "path": "./packages/project-graph-engine" },
+    { "path": "./packages/session-engine" },
+    { "path": "./packages/mcp-adapter" },
+    { "path": "./packages/ananke-adapter" },
+    { "path": "./packages/runtime-core" },
+    { "path": "./packages/cli" },
+    { "path": "./packages/testbench" }
+  ]
+}
