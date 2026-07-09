@@ -16,5 +16,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@mnemosyne/audit-engine": "*"
   }
 }

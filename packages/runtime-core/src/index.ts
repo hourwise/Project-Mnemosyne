@@ -23,7 +23,9 @@ export class MnemosyneRuntime {
   constructor(readonly config: MnemosyneRuntimeConfig) {
     this.audit = config.audit ?? new InMemoryAuditStore();
     this.store = config.store ?? new InMemoryAlmanacStore();
-    this.guard = new WorkspaceGuard(config.almanacRoot ?? `${config.projectRoot}/.project-ananke/almanac`);
+    this.guard = new WorkspaceGuard(config.almanacRoot ?? `${config.projectRoot}/.project-ananke/almanac`, {
+      audit: this.audit,
+    });
     this.onboarding = new OnboardingEngine(this.audit);
     this.session = new SessionEngine(this.audit);
   }
