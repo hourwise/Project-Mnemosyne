@@ -51,3 +51,14 @@ npm run demo:basic
 ## Local Storage
 
 Mnemosyne uses `.project-ananke/almanac/` for governed local state so it can coexist with Ananke's audit, approval, and policy state. Runtime databases and generated context files are ignored by git; only directory placeholders are tracked.
+
+## Documentation
+
+- [Laws of Mnemosyne](docs/LAWS_OF_MNEMOSYNE.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Almanac Model](docs/ALMANAC_MODEL.md)
+- [Security Model](docs/SECURITY_MODEL.md)
+- [Ananke Integration](docs/ANANKE_INTEGRATION.md)
+- [Roadmap](docs/ROADMAP.md)
+- [Validation and Compatibility](docs/VALIDATION_AND_COMPATIBILITY.md)
+- [ADR-0033: Frictionless Validation And Ecosystem Compatibility](docs/ADR-0033-FRICTIONLESS-VALIDATION-AND-ECOSYSTEM-COMPATIBILITY.md)

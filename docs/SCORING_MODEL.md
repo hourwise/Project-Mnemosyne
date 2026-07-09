@@ -15,3 +15,27 @@ Initial source weights:
 | Conversation summary | 0.50-0.75 |
 | Model inference | 0.30-0.60 |
 | Speculation | 0.10-0.40 |
+
+## Revalidation Inputs
+
+The reliability engine adjusts initial source weights using:
+
+- Source availability.
+- Source hash validity.
+- Age since last verification or creation.
+- Confirmation count.
+- Contradiction count.
+- Supersession.
+- Whether the source is authoritative.
+- Whether code and docs agree.
+- Risk level.
+
+Status transitions:
+
+- Missing source -> `stale`.
+- Changed source hash -> `stale`.
+- Contradiction found -> `contradicted`.
+- Superseded memory -> `superseded`.
+- Low reliability below threshold -> `stale`.
+
+Revalidation updates `lastVerifiedAt` and returns a reliability assessment with reasons so callers can audit why trust changed.

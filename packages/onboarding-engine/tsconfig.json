@@ -9,6 +9,9 @@
   "include": ["src"],
   "references": [
     { "path": "../schema" },
-    { "path": "../audit-engine" }
+    { "path": "../audit-engine" },
+    { "path": "../almanac-store" },
+    { "path": "../memory-ingest-engine" },
+    { "path": "../source-map-engine" }
   ]
 }

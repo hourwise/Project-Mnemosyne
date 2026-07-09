@@ -1,0 +1,283 @@
+I actually think this discussion reinforces something we've talked about with Project Ananke.
+
+Most of the products people mention are solving gateway problems:
+
+Discovery (what MCP servers exist?)
+Routing (where should this request go?)
+Identity (who is the agent/user?)
+Authentication and authorization
+Quotas and rate limiting
+Observability and metrics
+
+Those are all important, but they're largely control-plane concerns.
+
+The part that's still comparatively under-served is what happens after a request has already been routed to the correct tool.
+
+Questions like:
+
+Is the world state still valid?
+Is this approval still valid for this exact payload?
+If execution fails, what should the agent do next?
+Can the runtime distinguish "retry", "ask the user", "refresh state", and "never retry"?
+Can every outcome be audited and explained?
+
+That's the space Ananke is aiming at.
+
+Rather than replacing Docker, Arcade, Toolport, Kong, or similar, it could sit behind any of them. Let the gateway answer "Where should this go?" and let the runtime answer "Can this safely execute, and if not, what exactly should happen instead?"
+
+I suspect we'll eventually converge on a layered architecture:
+
+Gateway
+    ↓
+Identity / Auth
+    ↓
+Routing / Discovery
+    ↓
+Governed Runtime
+    ↓
+MCP Server
+
+The first three layers are becoming increasingly well served. The governed runtime layer still feels relatively immature, especially once agents become more autonomous and need deterministic, explainable behaviour rather than simple allow/deny decisions.
+
+That's why I increasingly see "gateway" and "runtime" as complementary rather than competing products. One manages traffic. The other manages execution. If that separation becomes common, I think it'll make the ecosystem much easier to reason about.
+
+Is the market saturated for the gateway component? Would it be worth creating a third project that completes the trilogy and is on the same wavelength as ananke and Mnemosyne 
+
+I don't think the gateway market is saturated. I think it's fragmenting, and that's an important distinction.
+
+The last few months have seen an explosion of MCP gateways, but if you look closely they're converging on the same set of problems:
+
+Discovery
+Routing
+Authentication
+OAuth/OIDC
+Multi-tenancy
+Rate limiting
+Metrics
+Observability
+
+They're all asking "How do I get this request to the right server securely?"
+
+That's a valuable problem, but it's becoming increasingly commoditised. Kong, Docker, Arcade, Toolport, ODock, Assury, TrueFoundry and others are all circling variations of it.
+
+Where I think the white space still exists
+
+Ananke isn't really competing with gateways.
+
+Mnemosyne isn't competing with gateways.
+
+They're introducing two new runtime layers.
+
+If you built a third project, I'd be very careful not to build "another gateway". I'd build the missing piece that naturally completes the architecture.
+
+Today I increasingly see your ecosystem as this:
+
+                Human
+                  │
+             AI Agent
+                  │
+          MCP Gateway Layer
+                  │
+          Project Ananke
+      (Execution Governance)
+                  │
+        Project Mnemosyne
+      (Persistent Knowledge)
+                  │
+            MCP Servers
+
+Notice what's missing?
+
+There is nothing coordinating all of this.
+
+The third project
+
+I think the third project should not be a gateway.
+
+It should be an orchestrator.
+
+Something that understands:
+
+which runtimes exist
+which memories exist
+which gateways exist
+which agents are connected
+capabilities
+health
+policies
+version compatibility
+
+Almost like Kubernetes, but for AI runtimes.
+
+For example:
+
+"I need filesystem access."
+
+Gateway:
+
+Filesystem server available.
+
+Orchestrator:
+
+Use Ananke policy X.
+Use Mnemosyne project memory Y.
+Use approval profile Z.
+Audit to SQLite.
+Cache using profile A.
+
+The agent never has to care.
+
+It also fits your mythology
+
+You accidentally picked three names that lend themselves to a coherent architecture.
+
+Ananke
+
+Necessity
+Rules
+Governance
+
+Mnemosyne
+
+Memory
+Knowledge
+Context
+
+Then the third could become the coordinator.
+
+A few thematic possibilities:
+
+Themis — order, justice, balance (governance/orchestration)
+Hermes — messenger, routing, coordination
+Athena — strategy
+Moira — orchestration of fate (although you've already discussed Moira Code as the IDE)
+
+The key is that it shouldn't route packets—it should coordinate systems.
+
+Even more interesting...
+
+Something occurred to me while reading your question.
+
+You're already solving three orthogonal problems:
+
+Project	Responsibility
+Ananke	Can this action execute safely?
+Mnemosyne	What should be remembered?
+Third project	What components should participate in this task?
+
+That's starting to resemble an operating system.
+
+Not an "AI assistant".
+
+An operating system for AI agents.
+
+My only caution
+
+I wouldn't start building it yet.
+
+Right now:
+
+Ananke still needs community validation.
+Mnemosyne still needs its first implementation.
+Runtime Contracts need adoption.
+
+If you launch a third repository now, you risk spreading your effort across too many fronts.
+
+I'd let people discover a need for the third project organically. Once users start saying things like, "How do I manage dozens of Ananke and Mnemosyne instances across teams?" or "How do I coordinate policies and memories across projects?", you'll know exactly what to build.
+
+Ironically, the strongest position may be not to build a gateway at all. If Ananke can sit behind Docker MCP, Kong, Arcade, Toolport, or whatever gateway an organisation already uses, it becomes complementary rather than competitive. That gives you a much larger potential audience because you're enhancing existing infrastructure instead of asking people to replace it. I think that's a stronger strategic position than entering the increasingly crowded gateway space.
+
+For a name how about charon or horae  both guardians of doors, gateways, entries or borders. I thought about cerberus but that's a little aggressive 
+
+I actually like where you're going with the mythology, but I think the symbolism matters because the names are already starting to tell a story.
+
+So far you've got:
+
+Ananke — necessity, inevitability, governance. Rules cannot be broken.
+Mnemosyne — memory, knowledge, persistence.
+
+Those two fit remarkably well because they describe what the software does, not just a cool mythological name.
+
+Charon
+
+Charon is interesting, but I don't think he's really a gateway guardian. He's a ferryman.
+
+His role is:
+
+verifying payment
+transporting travellers
+refusing passage if the conditions aren't met
+
+That's actually closer to an execution broker than a gateway. If your third project literally moved requests between runtimes, Charon could work.
+
+The downside is that many people immediately associate the name with death and the underworld. That's a branding hurdle, especially for enterprise users.
+
+Horae
+
+Horae is much more interesting.
+
+The Horae were associated with:
+
+opening and closing the gates of Olympus
+maintaining order
+regulating the proper time for things
+keeping the natural order
+
+That maps surprisingly well onto:
+
+service discovery
+registration
+capability exposure
+policy-controlled access
+lifecycle management
+
+It's also a much less "edgy" name than Cerberus or Charon.
+
+Cerberus
+
+Cerberus definitely communicates security.
+
+Unfortunately it's already heavily used:
+
+Kerberos authentication (name derived from Cerberus)
+numerous security products
+many GitHub projects
+
+It also implies keeping things in, rather than coordinating access.
+
+There's another thing I noticed
+
+The names you've already chosen represent concepts, not characters.
+
+Ananke = Necessity
+Mnemosyne = Memory
+
+The strongest third name would also be a concept.
+
+That's why I still find names like Themis (law, order, justice) or Horae (order, regulated passage) particularly compelling.
+
+My favourite if this project becomes orchestration
+
+If this repository ends up being:
+
+discovery
+registration
+capability negotiation
+runtime coordination
+gateway abstraction
+
+then Horae is actually excellent.
+
+It doesn't say "security product."
+
+It says:
+
+"This is the thing that decides when the gates open."
+
+That complements Ananke beautifully:
+
+Horae decides where and when something may pass.
+Ananke decides whether it may execute.
+Mnemosyne remembers what happened and what was learned.
+
+That's starting to feel like a coherent ecosystem rather than three unrelated repositories. It's distinctive, thematically consistent, and each name reflects a different responsibility without overlapping too much.

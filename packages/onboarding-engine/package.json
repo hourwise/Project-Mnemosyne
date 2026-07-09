@@ -19,6 +19,9 @@
   },
   "dependencies": {
     "@mnemosyne/schema": "*",
-    "@mnemosyne/audit-engine": "*"
+    "@mnemosyne/audit-engine": "*",
+    "@mnemosyne/almanac-store": "*",
+    "@mnemosyne/memory-ingest-engine": "*",
+    "@mnemosyne/source-map-engine": "*"
   }
 }
