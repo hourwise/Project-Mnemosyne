@@ -126,6 +126,9 @@ export const ConflictType = z.enum([
   'memory_vs_code',
   'source_hash_changed',
   'active_memory_source_missing',
+  'active_memory_untrusted_source',
+  'active_memory_contradicted_evidence',
+  'active_memory_superseded_evidence',
   'other',
 ]);
 export type ConflictType = z.infer<typeof ConflictType>;
