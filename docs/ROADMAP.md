@@ -29,11 +29,11 @@ Not production-hardened yet.
 | 4. Onboarding Engine | Implemented MVP scanner and memory extractor. |
 | 5. Reliability Engine | Implemented MVP with revalidation assessment. |
 | 6. Retrieval Engine | Implemented MVP with task-aware context packs. |
-| 7. Conflict Engine | Next. |
-| 8. MCP Server | Scaffolded only. |
-| 9. Ananke Adapter | Scaffolded only. |
+| 7. Conflict Engine | Implemented MVP with auditable structured conflict detection. |
+| 8. MCP Server | Implementing MVP. |
+| 9. Ananke Adapter | Implementing MVP. |
 
-## Next Milestone: Conflict Engine
+## Completed Milestone: Conflict Engine
 
 Conflict work should turn obvious contradictions into structured conflict records that retrieval and Ananke integration can use.
 

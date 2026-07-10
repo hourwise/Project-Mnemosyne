@@ -20,6 +20,8 @@
   "dependencies": {
     "@mnemosyne/audit-engine": "*",
     "@mnemosyne/almanac-store": "*",
+    "@mnemosyne/ananke-adapter": "*",
+    "@mnemosyne/mcp-adapter": "*",
     "@mnemosyne/onboarding-engine": "*",
     "@mnemosyne/retrieval-engine": "*",
     "@mnemosyne/session-engine": "*",

@@ -2,6 +2,8 @@ import { InMemoryAlmanacStore, type AlmanacStore } from '@mnemosyne/almanac-stor
 import { createAuditEvent, InMemoryAuditStore, type AuditStore } from '@mnemosyne/audit-engine';
 import { OnboardingEngine } from '@mnemosyne/onboarding-engine';
 import { RetrievalEngine } from '@mnemosyne/retrieval-engine';
+import { McpAlmanacServer } from '@mnemosyne/mcp-adapter';
+import { AnankeSafetyBridge, NoopAnankeAdapter, type AnankeAdapter } from '@mnemosyne/ananke-adapter';
 import { SessionEngine } from '@mnemosyne/session-engine';
 import { WorkspaceGuard } from '@mnemosyne/workspace-guard';
 
@@ -10,6 +12,7 @@ export interface MnemosyneRuntimeConfig {
   almanacRoot?: string;
   audit?: AuditStore;
   store?: AlmanacStore;
+  ananke?: AnankeAdapter;
 }
 
 export class MnemosyneRuntime {
@@ -19,6 +22,7 @@ export class MnemosyneRuntime {
   readonly onboarding: OnboardingEngine;
   readonly retrieval = new RetrievalEngine();
   readonly session: SessionEngine;
+  readonly ananke: AnankeSafetyBridge;
 
   constructor(readonly config: MnemosyneRuntimeConfig) {
     this.audit = config.audit ?? new InMemoryAuditStore();
@@ -28,6 +32,7 @@ export class MnemosyneRuntime {
     });
     this.onboarding = new OnboardingEngine(this.audit);
     this.session = new SessionEngine(this.audit);
+    this.ananke = new AnankeSafetyBridge(config.ananke ?? new NoopAnankeAdapter(), this.audit);
   }
 
   init(): void {
@@ -41,5 +46,14 @@ export class MnemosyneRuntime {
       activeMemories: this.store.listActive().length,
       auditEvents: this.audit.list().length,
     };
+  }
+
+  createMcpServer(sourceTextByPath: Record<string, string> = {}): McpAlmanacServer {
+    return new McpAlmanacServer({
+      store: this.store,
+      audit: this.audit,
+      status: () => this.status(),
+      sourceTextByPath,
+    });
   }
 }

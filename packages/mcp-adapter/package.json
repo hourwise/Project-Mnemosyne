@@ -2,7 +2,7 @@
   "name": "@mnemosyne/mcp-adapter",
   "version": "0.1.0",
   "private": true,
-  "description": "MCP tool manifest scaffold for governed Almanac tools",
+  "description": "Governed MCP tool server for Almanac operations",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -18,6 +18,11 @@
     "dev": "tsc --watch"
   },
   "dependencies": {
-    "@mnemosyne/schema": "*"
+    "@mnemosyne/almanac-store": "*",
+    "@mnemosyne/audit-engine": "*",
+    "@mnemosyne/reliability-engine": "*",
+    "@mnemosyne/retrieval-engine": "*",
+    "@mnemosyne/schema": "*",
+    "zod": "*"
   }
 }

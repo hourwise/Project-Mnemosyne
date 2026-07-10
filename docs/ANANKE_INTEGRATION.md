@@ -11,6 +11,15 @@ Initial notification reasons:
 
 Ananke can then block, warn, or require approval before project-changing actions proceed.
 
+## Adapter Contract
+
+`AnankeSafetyBridge` maps a structured `ConflictRecord` or `ContextPack` to the
+reasons above and writes `ANANKE_NOTIFICATION_SENT` or
+`ANANKE_NOTIFICATION_FAILED` audit events. Delivery failures are returned to the
+caller as an unsuccessful delivery result; the bridge never mutates Almanac
+memory or determines whether an action may proceed. Ananke remains the sole
+action authority.
+
 ## Compatibility Rules
 
 Combined Ananke and Mnemosyne validation must eventually prove these rules:
