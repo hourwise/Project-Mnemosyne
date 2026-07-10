@@ -13,6 +13,8 @@ Implemented so far:
 | Almanac store | In-memory and SQLite-backed store with audit event persistence. |
 | Workspace guard | Canonical path checks, symlink escape resistance, delete policy checks, and audit hooks. |
 | Onboarding engine | Project scan, source hashing, source typing, candidate memory extraction, optional store persistence. |
+| Reliability engine | Revalidation assessment with trust-change reasons and status transitions. |
+| Retrieval engine | Task-aware context-pack ranking with warnings, conflict propagation, snippets, and token budgeting. |
 | Tests | Unit tests for schemas, store, workspace guard, and onboarding. |
 
 Not production-hardened yet.
@@ -26,34 +28,33 @@ Not production-hardened yet.
 | 3. Workspace Guard | Implemented MVP with audit hooks. |
 | 4. Onboarding Engine | Implemented MVP scanner and memory extractor. |
 | 5. Reliability Engine | Implemented MVP with revalidation assessment. |
-| 6. Retrieval Engine | Next. |
-| 7. Conflict Engine | Scaffolded only. |
+| 6. Retrieval Engine | Implemented MVP with task-aware context packs. |
+| 7. Conflict Engine | Next. |
 | 8. MCP Server | Scaffolded only. |
 | 9. Ananke Adapter | Scaffolded only. |
 
-## Next Milestone: Retrieval Engine
+## Next Milestone: Conflict Engine
 
-Retrieval work should turn stored memories into compact, relevant context packs.
+Conflict work should turn obvious contradictions into structured conflict records that retrieval and Ananke integration can use.
 
 Required behavior:
 
-- Search and rank memories for a task.
-- Prefer active, high-reliability, source-recoverable records.
-- Penalize stale, contradicted, superseded, quarantined, and rejected records.
-- Include source snippets only when useful.
-- Surface conflicts and warnings instead of hiding them.
-- Estimate context-pack token cost.
-- Keep default context compact while preserving source recovery.
+- Detect source hash changes.
+- Detect active memories with missing sources.
+- Detect contradictory status/source combinations.
+- Detect simple user-instruction-vs-law keyword conflicts.
+- Detect supersession markers in ADR-like text where possible.
+- Return source references and recommended resolution.
+- Keep conflict output structured and auditable.
 
 Tests should cover:
 
-- Relevance ranking.
-- Reliability ordering.
-- Status filtering.
-- Conflict propagation.
-- Warning generation.
-- Token estimate behavior.
-- Source snippet association.
+- Missing source conflicts.
+- Hash change conflicts.
+- User-vs-law conflicts.
+- Active memory with contradicted/superseded evidence.
+- Conflict recommendations.
+- Retrieval warning propagation from conflicts.
 
 ## Validation Roadmap
 
