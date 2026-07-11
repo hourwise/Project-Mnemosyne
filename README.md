@@ -22,6 +22,7 @@ npm install
 npm run build
 npm test
 npm run demo:basic
+npm run demo:full
 ```
 
 Run the Quick validation harness and write its local JSON report:

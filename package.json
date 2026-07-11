@@ -15,7 +15,8 @@
     "dev:runtime": "npm run dev -w @mnemosyne/runtime-core",
     "dev:cli": "npm run dev -w @mnemosyne/cli",
     "test:bench": "npm run bench -w @mnemosyne/testbench",
-    "demo:basic": "npm run build && npx tsx examples/basic-almanac/index.ts"
+    "demo:basic": "npm run build && npx tsx examples/basic-almanac/index.ts",
+    "demo:full": "npm run build && npx tsx examples/full-lifecycle/index.ts"
   },
   "dependencies": {
     "better-sqlite3": "^12.11.1",

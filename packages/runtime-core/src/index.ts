@@ -40,7 +40,7 @@ export class MnemosyneRuntime {
     this.guard = new WorkspaceGuard(config.almanacRoot ?? `${config.projectRoot}/.project-Mnemosyne/almanac`, {
       audit: this.audit,
     });
-    this.onboarding = new OnboardingEngine(this.audit);
+    this.onboarding = new OnboardingEngine(this.audit, this.store);
     this.session = new SessionEngine(this.audit);
     this.ananke = new AnankeSafetyBridge(config.ananke ?? new NoopAnankeAdapter(), this.audit);
     this.vault = new PortableVaultStore(config.vaultRoot ?? `${config.projectRoot}/.mnemosyne`, config.vaultOptions);
