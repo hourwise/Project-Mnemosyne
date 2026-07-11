@@ -11,7 +11,7 @@ Project Mnemosyne is part of a broader governed AI runtime ecosystem:
 - Project Ananke governs execution, approval binding, auditability, and recoverable outcomes.
 - Project Mnemosyne governs memory, provenance, reliability, retrieval, conflict detection, and context packs.
 - Project Runtime Contracts is expected to hold stable shared protocol contracts once they are proven.
-- Moira Code may later bundle these runtimes into an integrated coding environment.
+- Moirae Code may later bundle these runtimes into an integrated coding environment.
 
 Mnemosyne should not be designed as an isolated memory demo. It must be easy to validate alone, and eventually easy to validate beside Ananke and Runtime Contracts.
 

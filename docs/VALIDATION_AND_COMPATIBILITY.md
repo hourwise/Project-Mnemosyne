@@ -122,7 +122,9 @@ Required report shape:
 }
 ```
 
-CSV export should include the same per-test line items once the JSON schema stabilizes.
+CSV export includes the same per-test line items. Run
+`npm run bench -w @mnemosyne/testbench -- --csv` to generate the sibling CSV
+alongside the JSON report, or pass a CSV path after `--csv`.
 
 ## GitHub Reporting
 

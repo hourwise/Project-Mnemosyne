@@ -80,7 +80,7 @@ Runtime Contracts must not contain engines, databases, persistence, policies, re
 |----------|---------|
 | Runtime identity | Standard `runtime`, `version`, and `protocolVersion` declaration |
 | Protocol version | Fast deterministic compatibility negotiation before execution |
-| Runtime names | Stable names for Ananke, Mnemosyne, Moira Code, and third-party runtimes |
+| Runtime names | Stable names for Ananke, Mnemosyne, Moirae Code, and third-party runtimes |
 | Validation report schema | Shared JSON/CSV shape for Ananke, Mnemosyne, and combined runs |
 | Capability manifest | Describes runtime capabilities, versions, and compatibility |
 | Health contract | Standard readiness and environment checks |

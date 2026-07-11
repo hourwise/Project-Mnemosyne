@@ -118,6 +118,150 @@ export const MemoryRecord = z.object({
 });
 export type MemoryRecord = z.infer<typeof MemoryRecord>;
 
+/** Record kinds stored in the portable, human-readable project vault. */
+export const ProjectRecordKind = z.enum([
+  'fact',
+  'decision',
+  'requirement',
+  'constraint',
+  'hypothesis',
+  'task-state',
+  'generated-output',
+  'external-reference',
+  'observation',
+  'conflict',
+]);
+export type ProjectRecordKind = z.infer<typeof ProjectRecordKind>;
+
+/** Prevents temporary work and advisory experience from silently becoming project truth. */
+export const ProjectRecordScope = z.enum(['project_truth', 'task_state', 'agent_performance']);
+export type ProjectRecordScope = z.infer<typeof ProjectRecordScope>;
+
+export const AccessClassification = z.enum(['public', 'internal', 'sensitive', 'restricted']);
+export type AccessClassification = z.infer<typeof AccessClassification>;
+
+export const ProjectRecordStatus = z.enum([
+  'active',
+  'tentative',
+  'stale',
+  'contradicted',
+  'superseded',
+  'archived',
+]);
+export type ProjectRecordStatus = z.infer<typeof ProjectRecordStatus>;
+
+export const ProjectRecord = z
+  .object({
+    id: EntityId,
+    projectId: EntityId,
+    kind: ProjectRecordKind,
+    scope: ProjectRecordScope,
+    content: NonEmptyString,
+    sources: z.array(SourceReference).min(1),
+    evidence: z.array(SourceReference).default([]),
+    createdAt: ISODateTime,
+    lastVerifiedAt: ISODateTime.optional(),
+    reliability: z.number().min(0).max(1),
+    status: ProjectRecordStatus.default('active'),
+    owner: NonEmptyString.optional(),
+    validFrom: ISODateTime.optional(),
+    validUntil: ISODateTime.optional(),
+    supersedes: z.array(EntityId).default([]),
+    supersededBy: EntityId.optional(),
+    contradicts: z.array(EntityId).default([]),
+    accessClassification: AccessClassification.default('internal'),
+    tags: z.array(NonEmptyString).default([]),
+  })
+  .superRefine((record, ctx) => {
+    if (record.kind === 'task-state' && record.scope !== 'task_state') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['scope'],
+        message: 'task-state records must use task_state scope',
+      });
+    }
+    if (record.scope === 'task_state' && record.kind !== 'task-state') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['kind'],
+        message: 'task_state scope may contain only task-state records',
+      });
+    }
+    if (record.scope === 'agent_performance' && record.kind !== 'observation') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['kind'],
+        message: 'agent_performance scope may contain only observation records',
+      });
+    }
+    if (record.lastVerifiedAt && record.lastVerifiedAt < record.createdAt) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['lastVerifiedAt'],
+        message: 'lastVerifiedAt must not be earlier than createdAt',
+      });
+    }
+    if (record.validFrom && record.validUntil && record.validUntil < record.validFrom) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['validUntil'],
+        message: 'validUntil must not be earlier than validFrom',
+      });
+    }
+    if (record.supersededBy && record.status !== 'superseded') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['supersededBy'],
+        message: 'supersededBy requires superseded status',
+      });
+    }
+  });
+export type ProjectRecord = z.infer<typeof ProjectRecord>;
+
+export const ProjectVaultManifest = z.object({
+  projectId: EntityId,
+  name: NonEmptyString,
+  schemaVersion: z.literal('1.0'),
+  createdAt: ISODateTime,
+  updatedAt: ISODateTime,
+});
+export type ProjectVaultManifest = z.infer<typeof ProjectVaultManifest>;
+
+export const ProjectVaultIndexEntry = z.object({
+  id: EntityId,
+  kind: ProjectRecordKind,
+  scope: ProjectRecordScope,
+  path: RelativeSourcePath,
+  updatedAt: ISODateTime,
+});
+export type ProjectVaultIndexEntry = z.infer<typeof ProjectVaultIndexEntry>;
+
+export const ProjectVaultIndex = z.object({
+  projectId: EntityId,
+  schemaVersion: z.literal('1.0'),
+  generatedAt: ISODateTime,
+  records: z.array(ProjectVaultIndexEntry).default([]),
+}).superRefine((index, ctx) => {
+  const ids = new Set<string>();
+  for (const [position, entry] of index.records.entries()) {
+    if (ids.has(entry.id)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['records', position, 'id'],
+        message: 'vault index record IDs must be unique',
+      });
+    }
+    ids.add(entry.id);
+  }
+});
+export type ProjectVaultIndex = z.infer<typeof ProjectVaultIndex>;
+
+export const ProjectVaultExport = z.object({
+  manifest: ProjectVaultManifest,
+  records: z.array(ProjectRecord),
+});
+export type ProjectVaultExport = z.infer<typeof ProjectVaultExport>;
+
 export const ConflictType = z.enum([
   'user_vs_law',
   'user_vs_policy',

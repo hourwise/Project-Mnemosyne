@@ -24,11 +24,62 @@ npm test
 npm run demo:basic
 ```
 
+Run the Quick validation harness and write its local JSON report:
+
+```bash
+npm run test:bench
+```
+
+Add `-- --csv` to write a matching per-test CSV report. By default, reports are
+stored under `.project-ananke/almanac/validation/` and are not tracked by Git.
+
+## Current Progress
+
+Mnemosyne has working MVP implementations for its core governed-memory path:
+
+- Almanac storage with in-memory and SQLite implementations, audit persistence, and workspace protection.
+- Project onboarding, reliability scoring and revalidation, retrieval, decay, and structured conflict detection.
+- A governed, transport-neutral MCP tool surface. It exposes Almanac operations only and never raw filesystem access.
+- Ananke safety notifications for conflicts, missing sources, low-reliability context, and insufficient context. Delivery outcomes are audited and cannot mutate Almanac memory.
+- A Quick validation testbench that checks runtime initialisation, SQLite persistence, and governed context retrieval, then emits JSON and optional CSV reports.
+- A portable-vault foundation with schema-versioned project metadata, human-readable `.mnemosyne/` records, strict project-truth/task-state/performance boundaries, and validated import/export.
+
+This is an MVP, not a production-hardened runtime. The detailed implementation
+status is maintained in the [roadmap](docs/ROADMAP.md).
+
+## Next And Future Work
+
+The immediate architecture task is to build restart packs and runtime/CLI
+integration on the portable, version-controlled `.mnemosyne/` vault foundation.
+The vault already provides human-readable project records, stable identifiers,
+schema versioning, source and evidence links, and import/export without tying
+project memory to a particular chat model or interface.
+
+The vault will strictly separate long-lived project truth from temporary task
+state and advisory agent-performance memory. Restart packs will then provide
+task-scoped, source-linked, stale-aware context for resuming work across models
+or coding environments.
+
+After that, planned work includes:
+
+- An end-to-end demo proving initialise, onboard, store and recall memory,
+  build context, detect conflict, score reliability, apply decay, and audit.
+- Portable-vault migration, cross-agent import/export, and restart-pack tests.
+- Explicit conflict-resolution lifecycle, sensitive-record classification,
+  redaction, and optional encryption.
+- Advisory skill/model experience records and confirmed-only voice records for
+  future Atlas and voice workflows.
+- User-approved, anonymised GitHub validation-report generation.
+- Standard, full, and hostile validation scenarios.
+- Combined Ananke/Mnemosyne compatibility testing once both runtimes have stable runnable surfaces.
+- Potential runtime coordination only if it emerges from real integration needs; Mnemosyne remains a memory runtime, not a gateway or orchestrator.
+
 ## Packages
 
 | Package | Purpose |
 | --- | --- |
 | `@mnemosyne/schema` | Shared types, schemas, constants, and result envelopes |
+| `@mnemosyne/portable-vault` | Human-readable `.mnemosyne` project records and validated import/export |
 | `@mnemosyne/audit-engine` | Almanac audit event recording interfaces and in-memory store |
 | `@mnemosyne/almanac-store` | Memory record storage interfaces and in-memory prototype |
 | `@mnemosyne/workspace-guard` | Canonical path checks for the governed Almanac area |
@@ -42,15 +93,19 @@ npm run demo:basic
 | `@mnemosyne/source-map-engine` | Source artifact indexing boundary |
 | `@mnemosyne/project-graph-engine` | Project relationship graph boundary |
 | `@mnemosyne/session-engine` | Session start/end lifecycle orchestration |
-| `@mnemosyne/mcp-adapter` | Initial MCP tool manifest boundary |
-| `@mnemosyne/ananke-adapter` | Future notifications from Mnemosyne to Ananke |
+| `@mnemosyne/mcp-adapter` | Governed transport-neutral MCP tool surface |
+| `@mnemosyne/ananke-adapter` | Auditable Mnemosyne safety notifications to Ananke |
 | `@mnemosyne/runtime-core` | Runtime composition layer |
 | `@mnemosyne/cli` | CLI entrypoint scaffold |
-| `@mnemosyne/testbench` | Repeatable safety and retrieval scenario harness |
+| `@mnemosyne/testbench` | Quick validation harness with JSON and CSV reports |
 
 ## Local Storage
 
-Mnemosyne uses `.project-ananke/almanac/` for governed local state so it can coexist with Ananke's audit, approval, and policy state. Runtime databases and generated context files are ignored by git; only directory placeholders are tracked.
+Mnemosyne uses `.project-ananke/almanac/` for governed local state so it can coexist with Ananke's audit, approval, and policy state. Runtime databases, generated context, and local validation reports are ignored by Git; only directory placeholders are tracked.
+
+The planned `.mnemosyne/` vault is a separate, human-readable portability layer
+for version-controlled project records. It will not expose raw filesystem access
+to agents or replace the governed runtime boundary.
 
 ## Documentation
 
@@ -61,4 +116,5 @@ Mnemosyne uses `.project-ananke/almanac/` for governed local state so it can coe
 - [Ananke Integration](docs/ANANKE_INTEGRATION.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Validation and Compatibility](docs/VALIDATION_AND_COMPATIBILITY.md)
+- [Research Additions and Requirements](docs/PROJECT_MNEMOSYNE_RESEARCH_AND_REQUIREMENTS.md)
 - [ADR-0033: Frictionless Validation And Ecosystem Compatibility](docs/ADR-0033-FRICTIONLESS-VALIDATION-AND-ECOSYSTEM-COMPATIBILITY.md)

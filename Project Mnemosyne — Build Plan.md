@@ -14,6 +14,64 @@ Mnemosyne does not replace source files. It creates a trusted index into them.
 
 ---
 
+# Research Requirements Addendum
+
+Mnemosyne must preserve project memory across replacement of the model, agent,
+or coding interface. The durable asset is structured project state—not a chat
+transcript—including requirements, decisions, constraints, task state,
+conflicts, checks, outputs, and evidence.
+
+## Portable Project Vault
+
+Add a human-readable, version-controlled, local-first `.mnemosyne/` vault as a
+portable project-memory layer:
+
+```text
+.mnemosyne/
+├── project.json
+├── index.json
+├── decisions/
+├── requirements/
+├── constraints/
+├── task-state/
+├── handoffs/
+├── evidence/
+├── conflicts/
+├── references/
+└── generated-context/
+```
+
+The vault requires stable IDs, schema versioning, line/file references,
+import/export, no proprietary chat dependency, and repository-scoped access.
+It is distinct from the current governed `.project-ananke/almanac/` runtime
+state: the vault is the version-controlled portability layer, while runtime
+access remains governed and agents still receive no raw filesystem tool.
+
+## Record Boundaries And Restart Packs
+
+Records must distinguish project truth (facts, requirements, constraints, and
+decisions), temporary task state, and advisory agent-performance memory. Task
+state must never silently become project truth. Every durable record needs a
+project ID, kind, source and evidence, timestamps and verification state,
+reliability, scope, owner, validity period, supersession and contradiction
+links, and access classification.
+
+Mnemosyne should generate model-neutral restart packs that are task-scoped,
+source-linked, stale-aware, reproducible, and token-budget aware. Packs must
+state what is complete, outstanding, constrained, and relevant to the next
+agent or interface.
+
+## Extended Safety Requirements
+
+Conflict resolution must retain both sources and historical decisions, preserve
+the distinction between outdated and false, and audit corrections and deletes.
+Future sensitive records require classification, redaction, optional
+encryption, and no silent external upload. Skill/model experience is advisory
+only and never grants authority. Voice records require confirmation before
+ambiguous speech can become authoritative.
+
+---
+
 # The Laws of Mnemosyne
 
 ## Law I — Provenance
@@ -132,30 +190,30 @@ Audit updated
 
 ---
 
-# Relationship to Moira Code
+# Relationship to Moirae Code
 
-Moira Code is the future integrated coding environment.
+Moirae Code is the future integrated coding environment.
 
-Do not build Moira yet.
+Do not build Moirae Code yet.
 
 For now:
 
 ```text
 Ananke = standalone MCP/runtime
 Mnemosyne = standalone MCP/runtime
-Moira = later VSCodium-based product that bundles both
+Moirae Code = later VSCodium-based product that bundles both
 ```
 
-Moira should eventually use sidecars:
+Moirae Code should eventually use sidecars:
 
 ```text
-MoiraCode/
+MoiraeCode/
 ├── VSCodiumCore/
 ├── AppPackaging/
 ├── InternalMCPs/
 │   ├── ananke-server/
 │   └── mnemosyne-server/
-├── MoiraExtension/
+├── MoiraeCodeExtension/
 └── RuntimeSupervisor/
 ```
 
@@ -1038,7 +1096,7 @@ TypeScript-first
 auditable
 modular
 compatible with Ananke
-ready for Moira later
+ready for Moirae Code later
 ```
 
 It should not be:
@@ -1063,4 +1121,4 @@ Ananke governs what the agent may do.
 
 Mnemosyne governs what the agent may believe.
 
-Moira Code will eventually bring both into one coding environment.
+Moirae Code will eventually bring both into one coding environment.

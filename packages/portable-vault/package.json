@@ -1,8 +1,8 @@
 {
-  "name": "@mnemosyne/testbench",
+  "name": "@mnemosyne/portable-vault",
   "version": "0.1.0",
   "private": true,
-  "description": "Repeatable validation harness for Mnemosyne memory and context governance",
+  "description": "Human-readable, version-controlled portable project vault",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -15,12 +15,9 @@
   },
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch",
-    "bench": "tsx src/runner.ts"
+    "dev": "tsc --watch"
   },
   "dependencies": {
-    "@mnemosyne/almanac-store": "*",
-    "@mnemosyne/runtime-core": "*",
     "@mnemosyne/schema": "*"
   }
 }

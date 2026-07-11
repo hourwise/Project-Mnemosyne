@@ -8,6 +8,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@mnemosyne/schema': resolve(__dirname, 'packages/schema/src/index.ts'),
+      '@mnemosyne/portable-vault': resolve(__dirname, 'packages/portable-vault/src/index.ts'),
       '@mnemosyne/audit-engine': resolve(__dirname, 'packages/audit-engine/src/index.ts'),
       '@mnemosyne/almanac-store': resolve(__dirname, 'packages/almanac-store/src/index.ts'),
       '@mnemosyne/workspace-guard': resolve(__dirname, 'packages/workspace-guard/src/index.ts'),
@@ -34,6 +35,7 @@ export default defineConfig({
       deps: {
         inline: [
           '@mnemosyne/schema',
+          '@mnemosyne/portable-vault',
           '@mnemosyne/audit-engine',
           '@mnemosyne/almanac-store',
           '@mnemosyne/workspace-guard',

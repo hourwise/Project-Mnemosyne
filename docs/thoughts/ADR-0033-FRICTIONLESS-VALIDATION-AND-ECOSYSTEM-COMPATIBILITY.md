@@ -20,7 +20,7 @@ Current and potential consumers include:
 
 - Ananke.
 - Mnemosyne.
-- Moira Code.
+- Moirae Code.
 - Third-party runtimes.
 
 Runtime Contracts should follow these principles:
