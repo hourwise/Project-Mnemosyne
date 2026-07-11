@@ -12,7 +12,7 @@ describe('WorkspaceGuard', () => {
 
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), 'mnemosyne-guard-'));
-    almanacRoot = join(tempDir, '.project-ananke', 'almanac');
+    almanacRoot = join(tempDir, '.project-Mnemosyne', 'almanac');
     mkdirSync(join(almanacRoot, 'journal'), { recursive: true });
   });
 

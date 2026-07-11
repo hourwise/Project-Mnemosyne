@@ -12,6 +12,8 @@
     { "path": "../audit-engine" },
     { "path": "../almanac-store" },
     { "path": "../onboarding-engine" },
+    { "path": "../portable-vault" },
+    { "path": "../restart-pack-engine" },
     { "path": "../retrieval-engine" },
     { "path": "../session-engine" },
     { "path": "../workspace-guard" }

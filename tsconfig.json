@@ -3,6 +3,7 @@
   "references": [
     { "path": "./packages/schema" },
     { "path": "./packages/portable-vault" },
+    { "path": "./packages/restart-pack-engine" },
     { "path": "./packages/audit-engine" },
     { "path": "./packages/almanac-store" },
     { "path": "./packages/workspace-guard" },

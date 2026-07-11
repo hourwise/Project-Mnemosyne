@@ -43,7 +43,7 @@ portable project-memory layer:
 
 The vault requires stable IDs, schema versioning, line/file references,
 import/export, no proprietary chat dependency, and repository-scoped access.
-It is distinct from the current governed `.project-ananke/almanac/` runtime
+It is distinct from the current governed `.project-Mnemosyne/almanac/` runtime
 state: the vault is the version-controlled portability layer, while runtime
 access remains governed and agents still receive no raw filesystem tool.
 
@@ -293,7 +293,7 @@ Mnemosyne should create a local, ringfenced storage area.
 Preferred shared future path:
 
 ```text
-.project-ananke/
+.project-Mnemosyne/
 ├── almanac/
 ├── audit/
 ├── approvals/
@@ -304,7 +304,7 @@ Preferred shared future path:
 Mnemosyne-specific path:
 
 ```text
-.project-ananke/
+.project-Mnemosyne/
 └── almanac/
     ├── almanac.sqlite
     ├── source-map.sqlite

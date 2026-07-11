@@ -26,7 +26,7 @@ Combined Ananke and Mnemosyne validation must eventually prove these rules:
 
 - Ananke failure must not corrupt Mnemosyne memory.
 - Mnemosyne failure must not bypass Ananke authority.
-- Shared storage under `.project-ananke/` must not create SQLite lock conflicts or accidental shared writes.
+- Mnemosyne storage under `.project-Mnemosyne/` must not create SQLite lock conflicts or accidental shared writes.
 - MCP tool names and memory namespaces must not collide.
 - Cross-runtime audit events must be correlatable by timestamp, runtime identity, and future protocol fields.
 

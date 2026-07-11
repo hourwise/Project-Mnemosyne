@@ -8,14 +8,14 @@ coverage/
 .idea/
 
 # Local governed runtime state
-.project-ananke/**/*.sqlite
-.project-ananke/**/*.sqlite-*
-.project-ananke/**/*.db
-.project-ananke/**/*.db-*
-.project-ananke/almanac/journal/*
-.project-ananke/almanac/context-packs/*
-.project-ananke/almanac/validation/*
-.project-ananke/almanac/snapshots/*
-.project-ananke/almanac/conflicts/*
-.project-ananke/almanac/quarantine/*
-!.project-ananke/**/.gitkeep
+.project-Mnemosyne/**/*.sqlite
+.project-Mnemosyne/**/*.sqlite-*
+.project-Mnemosyne/**/*.db
+.project-Mnemosyne/**/*.db-*
+.project-Mnemosyne/almanac/journal/*
+.project-Mnemosyne/almanac/context-packs/*
+.project-Mnemosyne/almanac/validation/*
+.project-Mnemosyne/almanac/snapshots/*
+.project-Mnemosyne/almanac/conflicts/*
+.project-Mnemosyne/almanac/quarantine/*
+!.project-Mnemosyne/**/.gitkeep

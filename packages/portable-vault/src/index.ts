@@ -90,6 +90,10 @@ export class PortableVaultStore {
     return parsed;
   }
 
+  async getManifest(): Promise<ProjectVaultManifestModel> {
+    return this.requireManifest();
+  }
+
   async readRecord(id: string): Promise<ProjectRecordModel | undefined> {
     const manifest = await this.requireManifest();
     const index = await this.readIndex(manifest.projectId);

@@ -200,7 +200,7 @@ function parseCliPaths(args: string[]): { jsonPath: string; csvPath?: string } {
   const positional = args.find((arg) => arg !== '--csv' && !arg.startsWith('--'));
   const jsonPath = positional
     ? resolve(positional)
-    : resolve(process.cwd(), '.project-ananke', 'almanac', 'validation', 'mnemosyne-validation.json');
+    : resolve(process.cwd(), '.project-Mnemosyne', 'almanac', 'validation', 'mnemosyne-validation.json');
   const csvIndex = args.indexOf('--csv');
   if (csvIndex < 0) return { jsonPath };
   const requestedPath = args[csvIndex + 1];

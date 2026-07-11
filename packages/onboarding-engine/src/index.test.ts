@@ -15,7 +15,7 @@ describe('OnboardingEngine', () => {
     mkdirSync(join(projectRoot, 'docs'), { recursive: true });
     mkdirSync(join(projectRoot, 'src'), { recursive: true });
     mkdirSync(join(projectRoot, 'tests'), { recursive: true });
-    mkdirSync(join(projectRoot, '.project-ananke', 'almanac'), { recursive: true });
+    mkdirSync(join(projectRoot, '.project-Mnemosyne', 'almanac'), { recursive: true });
     mkdirSync(join(projectRoot, 'node_modules', 'ignored'), { recursive: true });
 
     writeFileSync(
@@ -60,7 +60,7 @@ describe('OnboardingEngine', () => {
     );
 
     writeFileSync(
-      join(projectRoot, '.project-ananke', 'almanac', 'ignored.md'),
+       join(projectRoot, '.project-Mnemosyne', 'almanac', 'ignored.md'),
       'This should not be indexed.\n',
     );
     writeFileSync(join(projectRoot, 'node_modules', 'ignored', 'README.md'), 'ignored\n');
@@ -91,7 +91,7 @@ describe('OnboardingEngine', () => {
     expect(result.constraintsFound).toBeGreaterThanOrEqual(2);
     expect(result.memoriesCreated).toBe(result.memories.length);
     expect(result.memories.every((memory) => memory.status === 'tentative')).toBe(true);
-    expect(result.memories.every((memory) => memory.source.path !== '.project-ananke/almanac/ignored.md'))
+     expect(result.memories.every((memory) => memory.source.path !== '.project-Mnemosyne/almanac/ignored.md'))
       .toBe(true);
   });
 

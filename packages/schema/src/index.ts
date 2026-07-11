@@ -262,6 +262,31 @@ export const ProjectVaultExport = z.object({
 });
 export type ProjectVaultExport = z.infer<typeof ProjectVaultExport>;
 
+export const RestartPackItem = z.object({
+  id: EntityId,
+  content: NonEmptyString,
+  status: ProjectRecordStatus,
+  source: SourceReference,
+});
+export type RestartPackItem = z.infer<typeof RestartPackItem>;
+
+/** A model-neutral, source-linked continuation brief derived from portable records. */
+export const RestartPack = z.object({
+  projectId: EntityId,
+  projectName: NonEmptyString,
+  taskId: EntityId,
+  task: NonEmptyString,
+  generatedAt: ISODateTime,
+  branch: NonEmptyString.optional(),
+  lastVerifiedCommit: NonEmptyString.optional(),
+  completed: z.array(RestartPackItem).default([]),
+  outstanding: z.array(RestartPackItem).default([]),
+  relevant: z.array(RestartPackItem).default([]),
+  warnings: z.array(NonEmptyString).default([]),
+  tokenEstimate: z.number().int().nonnegative(),
+});
+export type RestartPack = z.infer<typeof RestartPack>;
+
 export const ConflictType = z.enum([
   'user_vs_law',
   'user_vs_policy',

@@ -23,6 +23,8 @@
     "@mnemosyne/ananke-adapter": "*",
     "@mnemosyne/mcp-adapter": "*",
     "@mnemosyne/onboarding-engine": "*",
+    "@mnemosyne/portable-vault": "*",
+    "@mnemosyne/restart-pack-engine": "*",
     "@mnemosyne/retrieval-engine": "*",
     "@mnemosyne/session-engine": "*",
     "@mnemosyne/workspace-guard": "*"

@@ -4,6 +4,12 @@ import { OnboardingEngine } from '@mnemosyne/onboarding-engine';
 import { RetrievalEngine } from '@mnemosyne/retrieval-engine';
 import { McpAlmanacServer } from '@mnemosyne/mcp-adapter';
 import { AnankeSafetyBridge, NoopAnankeAdapter, type AnankeAdapter } from '@mnemosyne/ananke-adapter';
+import {
+  PortableVaultStore,
+  type PortableVaultStoreOptions,
+} from '@mnemosyne/portable-vault';
+import { RestartPackEngine, type RestartPackSelection } from '@mnemosyne/restart-pack-engine';
+import type { ProjectRecord, ProjectVaultExport, ProjectVaultManifest, RestartPack } from '@mnemosyne/schema';
 import { SessionEngine } from '@mnemosyne/session-engine';
 import { WorkspaceGuard } from '@mnemosyne/workspace-guard';
 
@@ -13,6 +19,8 @@ export interface MnemosyneRuntimeConfig {
   audit?: AuditStore;
   store?: AlmanacStore;
   ananke?: AnankeAdapter;
+  vaultRoot?: string;
+  vaultOptions?: PortableVaultStoreOptions;
 }
 
 export class MnemosyneRuntime {
@@ -23,16 +31,19 @@ export class MnemosyneRuntime {
   readonly retrieval = new RetrievalEngine();
   readonly session: SessionEngine;
   readonly ananke: AnankeSafetyBridge;
+  readonly vault: PortableVaultStore;
+  readonly restartPacks = new RestartPackEngine();
 
   constructor(readonly config: MnemosyneRuntimeConfig) {
     this.audit = config.audit ?? new InMemoryAuditStore();
     this.store = config.store ?? new InMemoryAlmanacStore();
-    this.guard = new WorkspaceGuard(config.almanacRoot ?? `${config.projectRoot}/.project-ananke/almanac`, {
+    this.guard = new WorkspaceGuard(config.almanacRoot ?? `${config.projectRoot}/.project-Mnemosyne/almanac`, {
       audit: this.audit,
     });
     this.onboarding = new OnboardingEngine(this.audit);
     this.session = new SessionEngine(this.audit);
     this.ananke = new AnankeSafetyBridge(config.ananke ?? new NoopAnankeAdapter(), this.audit);
+    this.vault = new PortableVaultStore(config.vaultRoot ?? `${config.projectRoot}/.mnemosyne`, config.vaultOptions);
   }
 
   init(): void {
@@ -55,5 +66,46 @@ export class MnemosyneRuntime {
       status: () => this.status(),
       sourceTextByPath,
     });
+  }
+
+  async initializeVault(manifest: ProjectVaultManifest): Promise<ProjectVaultManifest> {
+    return this.vault.initialize(manifest);
+  }
+
+  async exportVault(): Promise<ProjectVaultExport> {
+    return this.vault.exportVault();
+  }
+
+  async writeVaultRecord(record: ProjectRecord): Promise<ProjectRecord> {
+    return this.vault.writeRecord(record);
+  }
+
+  async importVault(bundle: ProjectVaultExport): Promise<ProjectVaultExport> {
+    return this.vault.importVault(bundle);
+  }
+
+  async createRestartPack(taskId: string, selection: RestartPackSelection = {}): Promise<RestartPack> {
+    const task = await this.vault.readRecord(taskId);
+    if (!task) throw new Error(`Vault task record not found: ${taskId}`);
+    const resolveRecords = async (ids: string[] = []) =>
+      Promise.all(
+        ids.map(async (id) => {
+          const record = await this.vault.readRecord(id);
+          if (!record) throw new Error(`Vault record not found: ${id}`);
+          return record;
+        }),
+      );
+    return this.restartPacks.build(
+      {
+        project: await this.vault.getManifest(),
+        task,
+        completed: await resolveRecords(selection.completedIds),
+        outstanding: await resolveRecords(selection.outstandingIds),
+        relevant: await resolveRecords(selection.relevantIds),
+        branch: selection.branch,
+        lastVerifiedCommit: selection.lastVerifiedCommit,
+      },
+      { tokenBudget: selection.tokenBudget },
+    );
   }
 }

@@ -10,7 +10,7 @@ import type { MemoryKind, MemoryRecord, SourceReference, SourceType } from '@mne
 const ignoredDirectories = new Set([
   '.git',
   '.idea',
-  '.project-ananke',
+  '.project-Mnemosyne',
   'coverage',
   'dist',
   'node_modules',

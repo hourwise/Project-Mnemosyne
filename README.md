@@ -31,7 +31,7 @@ npm run test:bench
 ```
 
 Add `-- --csv` to write a matching per-test CSV report. By default, reports are
-stored under `.project-ananke/almanac/validation/` and are not tracked by Git.
+stored under `.project-Mnemosyne/almanac/validation/` and are not tracked by Git.
 
 ## Current Progress
 
@@ -43,14 +43,16 @@ Mnemosyne has working MVP implementations for its core governed-memory path:
 - Ananke safety notifications for conflicts, missing sources, low-reliability context, and insufficient context. Delivery outcomes are audited and cannot mutate Almanac memory.
 - A Quick validation testbench that checks runtime initialisation, SQLite persistence, and governed context retrieval, then emits JSON and optional CSV reports.
 - A portable-vault foundation with schema-versioned project metadata, human-readable `.mnemosyne/` records, strict project-truth/task-state/performance boundaries, and validated import/export.
+- A model-neutral Restart Pack generator with explicit task scope, source links, stale/low-reliability warnings, deterministic ordering, and token-budget awareness.
 
 This is an MVP, not a production-hardened runtime. The detailed implementation
 status is maintained in the [roadmap](docs/ROADMAP.md).
 
 ## Next And Future Work
 
-The immediate architecture task is to build restart packs and runtime/CLI
-integration on the portable, version-controlled `.mnemosyne/` vault foundation.
+The runtime and CLI now integrate the portable, version-controlled `.mnemosyne/`
+vault and Restart Pack generator. The immediate task is an end-to-end demo that
+proves the full governed-memory lifecycle.
 The vault already provides human-readable project records, stable identifiers,
 schema versioning, source and evidence links, and import/export without tying
 project memory to a particular chat model or interface.
@@ -59,6 +61,10 @@ The vault will strictly separate long-lived project truth from temporary task
 state and advisory agent-performance memory. Restart packs will then provide
 task-scoped, source-linked, stale-aware context for resuming work across models
 or coding environments.
+
+The CLI supports `vault-init`, `vault-list`, `vault-write`, `vault-export`,
+`vault-import`, and `restart-pack`; run `mnemosyne help` for the explicit
+record-ID arguments.
 
 After that, planned work includes:
 
@@ -80,6 +86,7 @@ After that, planned work includes:
 | --- | --- |
 | `@mnemosyne/schema` | Shared types, schemas, constants, and result envelopes |
 | `@mnemosyne/portable-vault` | Human-readable `.mnemosyne` project records and validated import/export |
+| `@mnemosyne/restart-pack-engine` | Model-neutral, source-linked, token-budgeted task continuation packs |
 | `@mnemosyne/audit-engine` | Almanac audit event recording interfaces and in-memory store |
 | `@mnemosyne/almanac-store` | Memory record storage interfaces and in-memory prototype |
 | `@mnemosyne/workspace-guard` | Canonical path checks for the governed Almanac area |
@@ -101,7 +108,7 @@ After that, planned work includes:
 
 ## Local Storage
 
-Mnemosyne uses `.project-ananke/almanac/` for governed local state so it can coexist with Ananke's audit, approval, and policy state. Runtime databases, generated context, and local validation reports are ignored by Git; only directory placeholders are tracked.
+Mnemosyne uses `.project-Mnemosyne/almanac/` for governed local state. Runtime databases, generated context, and local validation reports are ignored by Git; only directory placeholders are tracked.
 
 The planned `.mnemosyne/` vault is a separate, human-readable portability layer
 for version-controlled project records. It will not expose raw filesystem access

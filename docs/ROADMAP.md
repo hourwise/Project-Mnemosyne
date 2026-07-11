@@ -25,7 +25,7 @@ Not production-hardened yet.
 The [research requirements](PROJECT_MNEMOSYNE_RESEARCH_AND_REQUIREMENTS.md)
 establish model-independent project memory as the next design priority. Current
 governed runtime state remains under
-`.project-ananke/almanac/`; the planned `.mnemosyne/` vault is a separate,
+`.project-Mnemosyne/almanac/`; the planned `.mnemosyne/` vault is a separate,
 human-readable, version-controlled portability layer.
 
 Foundation completed:
@@ -34,6 +34,8 @@ Foundation completed:
 - Store human-readable records in controlled, scope-specific directories.
 - Enforce project-truth, task-state, and agent-performance boundaries.
 - Support validated local export/import without a raw filesystem MCP tool.
+- Generate deterministic, source-linked, stale-aware, token-budgeted restart packs.
+- Integrate the vault and restart packs into the runtime and user-invoked CLI.
 
 Remaining outcomes:
 
@@ -42,8 +44,8 @@ Remaining outcomes:
   ownership, validity periods, contradiction links, and access classification.
 - Keep project truth, temporary task state, and advisory agent-performance
   memory distinct; temporary state must not silently become project truth.
-- Generate reproducible, token-budgeted, source-linked, stale-aware restart
-  packs for task continuation across models and interfaces.
+- Add explicit conflict-resolution lifecycle, sensitive-record classification,
+  redaction, and optional encryption to portable records.
 - Extend conflict handling with explicit resolution while retaining both sources
   and historical decisions.
 - Support sensitive-record classification, redaction, auditable corrections and
@@ -67,7 +69,7 @@ added to the agent-facing MCP surface.
 | 7. Conflict Engine | Implemented MVP with auditable structured conflict detection. |
 | 8. MCP Server | Implemented MVP with a governed, transport-neutral tool surface. |
 | 9. Ananke Adapter | Implemented MVP with auditable safety notifications. |
-| 10. Portable Project Vault | Implemented foundation; restart packs and runtime/CLI integration remain. |
+| 10. Portable Project Vault | Vault, Restart Pack, runtime, and CLI foundations implemented. |
 
 ## Completed Milestone: Conflict Engine
 
@@ -102,7 +104,7 @@ Planned sequence:
 2. Add testbench scenarios for Mnemosyne quick validation. Implemented MVP.
 3. Generate local JSON validation reports. Implemented MVP.
 4. Add CSV export once the JSON shape stabilizes. Implemented MVP.
-5. Add restart-pack generation and portable-vault runtime/CLI integration; portable-vault migration tests are implemented.
+5. Add portable-record conflict lifecycle, redaction, and optional encryption; migration, generator, runtime, and CLI foundations are implemented.
 6. Add demo command that proves init, onboard, store, recall, context, conflict, score, decay, and audit.
 7. Add user-approved anonymised GitHub report generation.
 8. Add combined Ananke/Mnemosyne compatibility tests after both runtimes expose stable runnable surfaces.
