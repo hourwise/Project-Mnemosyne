@@ -50,6 +50,7 @@ Mnemosyne has working MVP implementations for its core governed-memory path:
 - A Quick validation testbench that checks runtime initialisation, SQLite persistence, and governed context retrieval, then emits JSON and optional CSV reports.
 - A portable-vault foundation with schema-versioned project metadata, human-readable `.mnemosyne/` records, strict project-truth/task-state/performance boundaries, and validated import/export.
 - A model-neutral Restart Pack generator with explicit task scope, source links, stale/low-reliability warnings, deterministic ordering, and token-budget awareness.
+- A provenance-source schema foundation for Milestone 11; admission gating, preflight validation, and inbound Ananke decisions are not implemented yet.
 
 This is an MVP, not a production-hardened runtime. The detailed implementation
 status is maintained in the [roadmap](docs/ROADMAP.md).
@@ -149,4 +150,5 @@ portability behavior without weakening the governed boundary.
 - [Validation and Compatibility](docs/VALIDATION_AND_COMPATIBILITY.md)
 - [Research Additions and Requirements](docs/PROJECT_MNEMOSYNE_RESEARCH_AND_REQUIREMENTS.md)
 - [ADR-0033: Frictionless Validation And Ecosystem Compatibility](docs/ADR-0033-FRICTIONLESS-VALIDATION-AND-ECOSYSTEM-COMPATIBILITY.md)
+- [ADR-00XX: Provenance Admission Design Gate](docs/ADR-00XX-PROVENANCE-ADMISSION-DESIGN-GATE.md)
 - [ADR-XXXX: Provenance-Aware Content Ingestion](docs/ADR-XXXX-mnemosyne-provenance-aware-content-ingestion.md)

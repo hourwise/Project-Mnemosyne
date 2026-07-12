@@ -5,6 +5,7 @@ import {
   ContextPack,
   MemoryRecord,
   ProjectGraphEdge,
+  ProvenanceSource,
   ResultEnvelope,
   SourceReference,
   SourceSnippet,
@@ -54,6 +55,42 @@ describe('SourceReference', () => {
   it('rejects invalid source line ranges', () => {
     expect(() => SourceReference.parse({ ...source, lineStart: 12, lineEnd: 4 })).toThrow();
     expect(() => SourceReference.parse({ ...source, lineStart: undefined, lineEnd: 4 })).toThrow();
+  });
+});
+
+describe('ProvenanceSource', () => {
+  const provenanceSource = {
+    sourceId: 'source_doc_laws_001',
+    sourceKind: 'repository_file',
+    sourceLocator: 'docs/LAWS_OF_MNEMOSYNE.md',
+    sourceContentHash: hash,
+    sourceObservedAt: createdAt,
+    ingestedAt: createdAt,
+    submittedBy: { id: 'runtime_mnemosyne', kind: 'runtime' },
+    title: 'The Laws Of Mnemosyne',
+    sourceVersion: 'main',
+    trustDomain: 'project_mnemosyne',
+    metadata: { artifactId: 'doc_laws_mnemosyne' },
+  } as const;
+
+  it('serializes a submitted source with stable identity and source metadata', () => {
+    expect(ProvenanceSource.parse(JSON.parse(JSON.stringify(provenanceSource)))).toEqual(
+      provenanceSource,
+    );
+  });
+
+  it('rejects malformed provenance identity, timestamps, and hashes', () => {
+    expect(() => ProvenanceSource.parse({ ...provenanceSource, sourceId: ' ' })).toThrow();
+    expect(() => ProvenanceSource.parse({ ...provenanceSource, sourceKind: ' ' })).toThrow();
+    expect(() =>
+      ProvenanceSource.parse({ ...provenanceSource, sourceContentHash: 'sha256:invalid' }),
+    ).toThrow();
+    expect(() =>
+      ProvenanceSource.parse({ ...provenanceSource, ingestedAt: 'not-a-date' }),
+    ).toThrow();
+    expect(() =>
+      ProvenanceSource.parse({ ...provenanceSource, submittedBy: { id: '', kind: 'runtime' } }),
+    ).toThrow();
   });
 });
 

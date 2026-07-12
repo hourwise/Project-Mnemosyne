@@ -85,6 +85,41 @@ export const SourceReference = z.object({
 });
 export type SourceReference = z.infer<typeof SourceReference>;
 
+/** Identifies the actor or runtime that submitted a provenance source. */
+export const ProvenanceActor = z.object({
+  id: NonEmptyString,
+  kind: NonEmptyString,
+});
+export type ProvenanceActor = z.infer<typeof ProvenanceActor>;
+
+/**
+ * Provenance source kinds remain open so shared Runtime Contracts or supported
+ * connectors can identify source classes without Mnemosyne duplicating them.
+ */
+export const ProvenanceSourceKind = NonEmptyString;
+export type ProvenanceSourceKind = z.infer<typeof ProvenanceSourceKind>;
+
+/**
+ * Durable source-level provenance for future admission records. This structural
+ * schema intentionally does not define preflight or Ananke contract shapes.
+ */
+export const ProvenanceSource = z.object({
+  sourceId: NonEmptyString,
+  sourceKind: ProvenanceSourceKind,
+  sourceLocator: NonEmptyString.optional(),
+  sourceContentHash: ContentHash.optional(),
+  sourceObservedAt: ISODateTime.optional(),
+  ingestedAt: ISODateTime,
+  submittedBy: ProvenanceActor,
+  title: NonEmptyString.optional(),
+  author: NonEmptyString.optional(),
+  publisher: NonEmptyString.optional(),
+  sourceVersion: NonEmptyString.optional(),
+  trustDomain: NonEmptyString.optional(),
+  metadata: z.record(z.unknown()).optional(),
+});
+export type ProvenanceSource = z.infer<typeof ProvenanceSource>;
+
 export const MemoryRecord = z.object({
   id: EntityId,
   kind: MemoryKind,

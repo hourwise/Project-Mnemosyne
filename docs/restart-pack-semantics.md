@@ -69,14 +69,21 @@ Budget behavior is currently approximate and text-based:
 - token estimation is `ceil(text.length / 4)`
 - if no budget is provided, the engine uses an effectively unbounded budget
 - if a budget is provided, it must be a positive finite number
-- records that would exceed the remaining budget are omitted
+- admission starts with an estimate for the header and adds each selected item's
+  rendered text; records that would exceed the remaining admission budget are
+  omitted
 - omitted records trigger the warning: `Some restart records were omitted to stay within the token budget.`
+
+The supplied budget is not a hard guarantee on the final rendered string. The
+selection estimate does not include every section label or warning before
+selection, while `tokenEstimate` is recalculated from the complete rendered pack.
 
 ## Inclusion And Exclusion Rules
 
 Included by current code:
 
-- the task record itself
+- the task record's ID and content as the task anchor (the task's source,
+  reliability, and status are not copied into the `RestartPack` task fields)
 - selected completed, outstanding, and relevant records from the same project
 - branch and commit strings when supplied
 - warnings derived from record status and reliability
@@ -117,6 +124,12 @@ Each `RestartPackItem` contains:
 
 The current implementation uses `record.sources[0]` as the source shown in the
 pack. It does not currently render multiple source references for one record.
+The task anchor is not a `RestartPackItem`, so its source reference is not carried
+in the pack schema.
+
+The pack contains status but not the selected records' numeric reliability
+values. Reliability affects warning generation only; it is not a selection
+threshold in the current engine.
 
 ## Rendered Form
 

@@ -114,8 +114,8 @@ Each `ProjectRecord` currently contains:
 ## Source References
 
 Portable-vault records do not copy source files into the vault. Instead, they
-retain `SourceReference` values that point back to project-relative source
-locations with:
+retain `SourceReference` values conventionally interpreted as project-relative
+source locations with:
 
 - `artifactId`
 - `path`
@@ -123,8 +123,9 @@ locations with:
 - `sourceType`
 - Optional `heading`, `lineStart`, and `lineEnd`
 
-`SourceReference.path` must remain relative and may not contain absolute paths
-or `..` traversal.
+`SourceReference.path` must remain relative and may not contain absolute paths or
+`..` traversal. The schema does not verify that the referenced file exists beneath
+a configured project root.
 
 ## Initialization
 
@@ -136,13 +137,24 @@ or `..` traversal.
   same project
 - rejects initialization against an existing vault with a different `projectId`
 
+When a vault already exists for the same project, `initialize()` does not replace
+its manifest with the supplied manifest. Later import writes therefore use the
+existing manifest's project identity, name, and creation timestamp; each record
+write refreshes the manifest's `updatedAt` value.
+
 ## Import And Export Validation
 
 `exportVault()` currently returns:
 
 ```json
 {
-  "manifest": { "projectId": "project_mnemosyne", "schemaVersion": "1.0" },
+  "manifest": {
+    "projectId": "project_mnemosyne",
+    "name": "Project Mnemosyne",
+    "schemaVersion": "1.0",
+    "createdAt": "2026-07-11T00:00:00.000Z",
+    "updatedAt": "2026-07-11T00:00:00.000Z"
+  },
   "records": []
 }
 ```
@@ -155,6 +167,11 @@ or `..` traversal.
 
 Import then writes each record through the normal `writeRecord()` path, so the
 same schema and path checks apply during import as during local writes.
+
+Bundle validation and duplicate-ID checks happen before the first write. Records
+are then written sequentially; the repository does not provide a transaction or
+rollback if a later write fails. Import also does not check that referenced source
+files exist or that their current hashes match.
 
 ## Path Restrictions
 
@@ -179,13 +196,14 @@ schema is extended to include them.
 
 ## Merge And Conflict Behavior
 
-Current import behavior is replace-by-ID, not merge-by-history:
+Current import behavior is per-record overwrite-by-ID, not merge-by-history:
 
-- if a record ID already exists, `writeRecord()` rewrites that record file and
+- if a record ID already exists, `writeRecord()` overwrites that record file and
   refreshes the matching index entry
 - no three-way merge is attempted
 - no automatic `ConflictRecord` is created during import
 - duplicate IDs inside an import bundle are rejected before writing
+- records absent from the import bundle are not deleted
 
 ## Secrets And Exclusions
 
@@ -201,10 +219,14 @@ export control in the current code.
 
 ## Portability Guarantees
 
-Current repository evidence supports these guarantees:
+Current repository evidence supports these guarantees for a new vault or a
+matching existing vault:
 
 - portable-vault files are human-readable JSON
-- record IDs and manifest fields round-trip through export and import
+- record IDs and known schema fields round-trip through export and import; a new
+  target preserves the exported manifest, while a matching existing target keeps
+  its existing project identity, name, and creation timestamp and refreshes
+  `updatedAt` as records are written
 - record scope boundaries are schema-validated
 - source references remain relative, source-linked metadata rather than copied
   source blobs
@@ -220,6 +242,7 @@ The current repository does not guarantee:
 - copied source content availability outside the originating project
 - automatic recomputation of reliability after import
 - automatic handling for renamed or moved source files
+- replacement of an existing manifest's metadata during import
 
 ## Open Questions
 

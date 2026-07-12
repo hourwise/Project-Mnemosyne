@@ -55,12 +55,15 @@ Mnemosyne.
 
 ## Shared Events And Local Audit
 
+No shared cross-runtime event schema is implemented in this repository.
 Mnemosyne currently records only its own local notification-attempt audit:
 
 - `ANANKE_NOTIFICATION_SENT`
 - `ANANKE_NOTIFICATION_FAILED`
 
 These are Mnemosyne audit events, not imported copies of Ananke's action audit.
+The `CONFLICT_DETECTED` and other memory audit events remain local as well; an
+Ananke event is not copied, acknowledged, or reconciled by this adapter.
 
 ## Governed-Action References
 
@@ -82,6 +85,10 @@ Current implementation is explicit:
 
 - `NoopAnankeAdapter` allows Mnemosyne to run without an external Ananke
   transport.
+- With `NoopAnankeAdapter`, the bridge returns `delivered: true` and records
+  `ANANKE_NOTIFICATION_SENT` after the local no-op completes. That result means
+  only that the configured adapter completed; it is not evidence that Ananke
+  received a notification or made an action decision.
 - If an adapter throws, `AnankeSafetyBridge` catches the error, records
   `ANANKE_NOTIFICATION_FAILED`, and returns `delivered: false`.
 - Notification failure does not mutate Almanac memory.
@@ -98,20 +105,27 @@ and the integration docs:
 
 - Mnemosyne failure must not bypass Ananke authority.
 
-That is a compatibility requirement, not yet a full runtime handshake protocol.
+There is no implemented behavior that turns a missing Mnemosyne notification
+into approval or into a particular Ananke decision. Ananke or the action caller
+must apply its own policy when Mnemosyne cannot provide context. This is a
+compatibility requirement, not yet a full runtime handshake or fallback
+protocol.
 
 ## Supported Correlation Identifiers
 
-Current repository evidence supports these correlation anchors:
+Current repository evidence supports these correlation anchors, but not as
+formal fields in a shared protocol:
 
 - conflict IDs
 - memory IDs
 - task text in context notifications
 - Mnemosyne audit timestamps
 
-The docs mention future shared fields such as runtime identity and protocol
-version, but those fields are not implemented in the current notification
-payloads.
+Conflict and memory IDs are notification metadata; task text is metadata only on
+context-safety notifications; timestamps are present on Mnemosyne's local audit
+events, not on `AnankeNotification`. The docs mention future shared fields such
+as runtime identity and protocol version, but those fields are not implemented
+in the current notification payloads.
 
 ## Non-Goals In The Current Repository
 
