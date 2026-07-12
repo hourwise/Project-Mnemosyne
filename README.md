@@ -4,6 +4,11 @@ Project Mnemosyne is a governed memory and context runtime for AI agents.
 
 Mnemosyne maintains a local project memory called **The Almanac**. The Almanac stores distilled knowledge, source references, reliability scores, conflicts, session history, and project relationships. It does not replace source files; it creates a trusted index into them.
 
+Mnemosyne's next ingestion boundary is provenance-aware by design: covered
+content will require a valid Content Surface Preflight receipt plus an Ananke
+decision before it can influence persistent memory. Untrusted source text stays
+source evidence, never runtime instruction.
+
 ## Relationship To Ananke
 
 Ananke governs actions. Mnemosyne governs memory.
@@ -58,6 +63,11 @@ The vault already provides human-readable project records, stable identifiers,
 schema versioning, source and evidence links, and import/export without tying
 project memory to a particular chat model or interface.
 
+In parallel, the next ingestion hardening step is provenance-aware content
+admission: bind memory claims to source hashes, preflight receipts, exposure and
+truncation state, and Ananke decisions so stale or hostile source material
+cannot silently become trusted memory.
+
 The vault will strictly separate long-lived project truth from temporary task
 state and advisory agent-performance memory. Restart packs will then provide
 task-scoped, source-linked, stale-aware context for resuming work across models
@@ -69,6 +79,9 @@ record-ID arguments.
 
 After that, planned work includes:
 
+- Provenance-aware content ingestion with preflight receipt checks, per-claim
+  provenance links, instruction separation, and deterministic stale-source
+  revalidation.
 - An end-to-end demo proving initialise, onboard, store and recall memory,
   build context, detect conflict, score reliability, apply decay, and audit.
 - Portable-vault migration, cross-agent import/export, and restart-pack tests.
@@ -83,40 +96,50 @@ After that, planned work includes:
 
 ## Packages
 
-| Package | Purpose |
-| --- | --- |
-| `@mnemosyne/schema` | Shared types, schemas, constants, and result envelopes |
-| `@mnemosyne/portable-vault` | Human-readable `.mnemosyne` project records and validated import/export |
-| `@mnemosyne/restart-pack-engine` | Model-neutral, source-linked, token-budgeted task continuation packs |
-| `@mnemosyne/audit-engine` | Almanac audit event recording interfaces and in-memory store |
-| `@mnemosyne/almanac-store` | Memory record storage interfaces and in-memory prototype |
-| `@mnemosyne/workspace-guard` | Canonical path checks for the governed Almanac area |
-| `@mnemosyne/scoring-engine` | Source-type score seeds and scoring rules |
-| `@mnemosyne/onboarding-engine` | First-run project scan orchestration |
-| `@mnemosyne/memory-ingest-engine` | Candidate memory ingestion boundaries |
-| `@mnemosyne/reliability-engine` | Memory reliability scoring and revalidation hooks |
-| `@mnemosyne/retrieval-engine` | Context pack retrieval boundary |
-| `@mnemosyne/conflict-engine` | Conflict detection records and checks |
-| `@mnemosyne/decay-engine` | Reliability decay rules |
-| `@mnemosyne/source-map-engine` | Source artifact indexing boundary |
-| `@mnemosyne/project-graph-engine` | Project relationship graph boundary |
-| `@mnemosyne/session-engine` | Session start/end lifecycle orchestration |
-| `@mnemosyne/mcp-adapter` | Governed transport-neutral MCP tool surface |
-| `@mnemosyne/ananke-adapter` | Auditable Mnemosyne safety notifications to Ananke |
-| `@mnemosyne/runtime-core` | Runtime composition layer |
-| `@mnemosyne/cli` | CLI entrypoint scaffold |
-| `@mnemosyne/testbench` | Quick validation harness with JSON and CSV reports |
+| Package                           | Purpose                                                                 |
+| --------------------------------- | ----------------------------------------------------------------------- |
+| `@mnemosyne/schema`               | Shared types, schemas, constants, and result envelopes                  |
+| `@mnemosyne/portable-vault`       | Human-readable `.mnemosyne` project records and validated import/export |
+| `@mnemosyne/restart-pack-engine`  | Model-neutral, source-linked, token-budgeted task continuation packs    |
+| `@mnemosyne/audit-engine`         | Almanac audit event recording interfaces and in-memory store            |
+| `@mnemosyne/almanac-store`        | Memory record storage interfaces and in-memory prototype                |
+| `@mnemosyne/workspace-guard`      | Canonical path checks for the governed Almanac area                     |
+| `@mnemosyne/scoring-engine`       | Source-type score seeds and scoring rules                               |
+| `@mnemosyne/onboarding-engine`    | First-run project scan orchestration                                    |
+| `@mnemosyne/memory-ingest-engine` | Candidate memory ingestion boundaries                                   |
+| `@mnemosyne/reliability-engine`   | Memory reliability scoring and revalidation hooks                       |
+| `@mnemosyne/retrieval-engine`     | Context pack retrieval boundary                                         |
+| `@mnemosyne/conflict-engine`      | Conflict detection records and checks                                   |
+| `@mnemosyne/decay-engine`         | Reliability decay rules                                                 |
+| `@mnemosyne/source-map-engine`    | Source artifact indexing boundary                                       |
+| `@mnemosyne/project-graph-engine` | Project relationship graph boundary                                     |
+| `@mnemosyne/session-engine`       | Session start/end lifecycle orchestration                               |
+| `@mnemosyne/mcp-adapter`          | Governed transport-neutral MCP tool surface                             |
+| `@mnemosyne/ananke-adapter`       | Auditable Mnemosyne safety notifications to Ananke                      |
+| `@mnemosyne/runtime-core`         | Runtime composition layer                                               |
+| `@mnemosyne/cli`                  | CLI entrypoint scaffold                                                 |
+| `@mnemosyne/testbench`            | Quick validation harness with JSON and CSV reports                      |
 
 ## Local Storage
 
 Mnemosyne uses `.project-Mnemosyne/almanac/` for governed local state. Runtime databases, generated context, and local validation reports are ignored by Git; only directory placeholders are tracked.
 
-The planned `.mnemosyne/` vault is a separate, human-readable portability layer
-for version-controlled project records. It will not expose raw filesystem access
-to agents or replace the governed runtime boundary.
+The `.mnemosyne/` vault is a separate, human-readable portability layer for
+version-controlled project records. It does not expose raw filesystem access to
+agents or replace the governed runtime boundary.
+
+The `.mnemosyne/` vault foundation is now implemented in the runtime and CLI;
+the remaining work is to expand record semantics, conflict handling, and
+portability behavior without weakening the governed boundary.
 
 ## Documentation
 
+- [Memory Lifecycle](docs/memory-lifecycle.md)
+- [Data Classification](docs/data-classification.md)
+- [Portable Vault Specification](docs/portable-vault-specification.md)
+- [Restart Pack Semantics](docs/restart-pack-semantics.md)
+- [Ananke Boundary](docs/integration/ananke-boundary.md)
+- [Decisions Index](docs/decisions/README.md)
 - [Laws of Mnemosyne](docs/LAWS_OF_MNEMOSYNE.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Almanac Model](docs/ALMANAC_MODEL.md)
@@ -126,3 +149,4 @@ to agents or replace the governed runtime boundary.
 - [Validation and Compatibility](docs/VALIDATION_AND_COMPATIBILITY.md)
 - [Research Additions and Requirements](docs/PROJECT_MNEMOSYNE_RESEARCH_AND_REQUIREMENTS.md)
 - [ADR-0033: Frictionless Validation And Ecosystem Compatibility](docs/ADR-0033-FRICTIONLESS-VALIDATION-AND-ECOSYSTEM-COMPATIBILITY.md)
+- [ADR-XXXX: Provenance-Aware Content Ingestion](docs/ADR-XXXX-mnemosyne-provenance-aware-content-ingestion.md)

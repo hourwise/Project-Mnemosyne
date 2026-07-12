@@ -6,21 +6,49 @@ Mnemosyne is an early TypeScript-first governed memory runtime.
 
 Implemented so far:
 
-| Area | State |
-| --- | --- |
-| Repository scaffold | Ananke-compatible npm workspace. |
-| Core schemas | Memory, source reference, context pack, conflict, audit, graph, and result models. |
-| Almanac store | In-memory and SQLite-backed store with audit event persistence. |
-| Workspace guard | Canonical path checks, symlink escape resistance, delete policy checks, and audit hooks. |
-| Onboarding engine | Project scan, source hashing, source typing, candidate memory extraction, optional store persistence. |
-| Reliability engine | Revalidation assessment with trust-change reasons and status transitions. |
-| Retrieval engine | Task-aware context-pack ranking with warnings, conflict propagation, snippets, and token budgeting. |
-| Portable vault | Implemented foundation with typed records, human-readable files, and validated import/export. |
-| Tests | Unit tests for schemas, store, workspace guard, and onboarding. |
+| Area                | State                                                                                                 |
+| ------------------- | ----------------------------------------------------------------------------------------------------- |
+| Repository scaffold | Ananke-compatible npm workspace.                                                                      |
+| Core schemas        | Memory, source reference, context pack, conflict, audit, graph, and result models.                    |
+| Almanac store       | In-memory and SQLite-backed store with audit event persistence.                                       |
+| Workspace guard     | Canonical path checks, symlink escape resistance, delete policy checks, and audit hooks.              |
+| Onboarding engine   | Project scan, source hashing, source typing, candidate memory extraction, optional store persistence. |
+| Reliability engine  | Revalidation assessment with trust-change reasons and status transitions.                             |
+| Retrieval engine    | Task-aware context-pack ranking with warnings, conflict propagation, snippets, and token budgeting.   |
+| Portable vault      | Implemented foundation with typed records, human-readable files, and validated import/export.         |
+| Tests               | Unit tests for schemas, store, workspace guard, and onboarding.                                       |
 
 Not production-hardened yet.
 
-## Next Architecture Milestone: Portable Project Vault
+## Next Architecture Milestone: Provenance-Aware Content Ingestion
+
+The next hardening milestone is to make memory admission provenance-aware.
+Covered content should not enter persistent memory unless Mnemosyne can prove
+what was inspected, how much of it was emitted, whether it was truncated, and
+whether Ananke permitted the memory operation.
+
+Required outcomes:
+
+- Require a valid Content Surface Preflight receipt for covered ingestion paths.
+- Bind receipt identity to the current source hash and reject stale, missing,
+  failed, unsupported, or mismatched inspection results.
+- Record per-claim provenance including source hash, receipt ID, observation ID,
+  Ananke decision ID, exposure level, truncation state, and source location when
+  available.
+- Keep runtime rules, trusted configuration, untrusted source text, derived
+  observations, and normalized memory claims strictly separated.
+- Treat source-controlled metadata as quoted evidence by default, never silent
+  configuration or policy.
+- Revalidate dependent memories when a source hash changes and preserve
+  superseded history.
+- Preserve source separation in multi-source summaries so quarantining one
+  source only suspends dependent claims.
+
+Validation must cover prompt-injection text, secret-bearing content, stale
+receipts, hash mismatches, truncated material, mixed-trust multi-source claims,
+and source mutation after inspection.
+
+## Parallel Architecture Milestone: Portable Project Vault
 
 The [research requirements](PROJECT_MNEMOSYNE_RESEARCH_AND_REQUIREMENTS.md)
 establish model-independent project memory as the next design priority. Current
@@ -58,18 +86,19 @@ added to the agent-facing MCP surface.
 
 ## Build Milestones
 
-| Milestone | Status |
-| --- | --- |
-| 1. Core Types | Implemented. |
-| 2. Almanac Store | Implemented MVP with SQLite. |
-| 3. Workspace Guard | Implemented MVP with audit hooks. |
-| 4. Onboarding Engine | Implemented MVP scanner and memory extractor. |
-| 5. Reliability Engine | Implemented MVP with revalidation assessment. |
-| 6. Retrieval Engine | Implemented MVP with task-aware context packs. |
-| 7. Conflict Engine | Implemented MVP with auditable structured conflict detection. |
-| 8. MCP Server | Implemented MVP with a governed, transport-neutral tool surface. |
-| 9. Ananke Adapter | Implemented MVP with auditable safety notifications. |
-| 10. Portable Project Vault | Vault, Restart Pack, runtime, and CLI foundations implemented. |
+| Milestone                              | Status                                                                                 |
+| -------------------------------------- | -------------------------------------------------------------------------------------- |
+| 1. Core Types                          | Implemented.                                                                           |
+| 2. Almanac Store                       | Implemented MVP with SQLite.                                                           |
+| 3. Workspace Guard                     | Implemented MVP with audit hooks.                                                      |
+| 4. Onboarding Engine                   | Implemented MVP scanner and memory extractor.                                          |
+| 5. Reliability Engine                  | Implemented MVP with revalidation assessment.                                          |
+| 6. Retrieval Engine                    | Implemented MVP with task-aware context packs.                                         |
+| 7. Conflict Engine                     | Implemented MVP with auditable structured conflict detection.                          |
+| 8. MCP Server                          | Implemented MVP with a governed, transport-neutral tool surface.                       |
+| 9. Ananke Adapter                      | Implemented MVP with auditable safety notifications.                                   |
+| 10. Portable Project Vault             | Vault, Restart Pack, runtime, and CLI foundations implemented.                         |
+| 11. Provenance-Aware Content Ingestion | Planned. Receipt-gated admission, per-claim provenance, and stale-source revalidation. |
 
 ## Completed Milestone: Conflict Engine
 
@@ -104,10 +133,15 @@ Planned sequence:
 2. Add testbench scenarios for Mnemosyne quick validation. Implemented MVP.
 3. Generate local JSON validation reports. Implemented MVP.
 4. Add CSV export once the JSON shape stabilizes. Implemented MVP.
-5. Add portable-record conflict lifecycle, redaction, and optional encryption; migration, generator, runtime, and CLI foundations are implemented.
-6. Add demo command that proves init, onboard, store, recall, context, conflict, score, decay, and audit.
-7. Add user-approved anonymised GitHub report generation.
-8. Add combined Ananke/Mnemosyne compatibility tests after both runtimes expose stable runnable surfaces.
+5. Add provenance-aware ingestion validation covering receipts, truncation,
+   source mutation, hostile metadata, and mixed-source contamination control.
+6. Add portable-record conflict lifecycle, redaction, and optional encryption;
+   migration, generator, runtime, and CLI foundations are implemented.
+7. Add demo command that proves init, onboard, store, recall, context,
+   conflict, score, decay, audit, and governed content admission.
+8. Add user-approved anonymised GitHub report generation.
+9. Add combined Ananke/Mnemosyne compatibility tests after both runtimes expose
+   stable runnable surfaces.
 
 ## Ecosystem Roadmap
 
@@ -140,6 +174,7 @@ Gateway responsibilities:
 Mnemosyne responsibilities:
 
 - Provenance.
+- Covered-content admission control.
 - Reliability.
 - Revalidation.
 - Retrieval.
