@@ -1,0 +1,79 @@
+You are performing a documentation-only pass on this repository.
+
+NON-NEGOTIABLE RULES
+
+1. Do not modify runtime code, tests, package manifests, lockfiles, build configuration, CI configuration, dependencies, generated files, or deployment configuration unless this prompt explicitly requests a documentation-only link or metadata correction.
+2. Do not invent capabilities, guarantees, APIs, states, ownership boundaries, implementation status, security properties, protocol behaviour, or future commitments.
+3. Treat accepted ADRs, exported public types, source code, tests, and the current README as evidence. In that order, prefer implemented and tested behaviour over prose.
+4. If sources disagree, do not silently resolve the conflict. Add a clearly labelled "Documentation conflict" or "Open question" section and report it in the final summary.
+5. Clearly distinguish: implemented and tested; implemented but not integration-tested; scaffolded; designed; proposed; explicitly out of scope.
+6. Never describe proposed or scaffolded behaviour as currently working.
+7. Do not add marketing language or unsupported claims such as "secure", "production-ready", "guaranteed", "zero trust", or "enterprise-grade".
+8. Keep terminology consistent with project-runtime-contracts and accepted ecosystem terminology.
+9. Use relative repository links.
+10. Mermaid diagrams may be added only when every component, relationship, and transition is supported by repository evidence or an explicit requirement in this prompt.
+11. Keep changes restricted to Markdown or plain-text documentation files and README documentation links.
+12. Do not create empty placeholder files. Every created document must contain useful, repository-specific content.
+13. Do not duplicate the README. New documentation should deepen, formalise, or operationalise material that is too detailed for the README.
+14. Do not commit or push unless explicitly instructed. Prepare the changes and report the diff.
+
+EVIDENCE AND WORKFLOW
+
+Before editing:
+- Inspect the repository tree.
+- Read the README, existing docs, ADRs, public types, package boundaries, and relevant tests.
+- List the evidence sources you will use.
+- Identify contradictions, outdated statements, naming inconsistencies, and unresolved decisions.
+- Confirm that the requested documents are not already present under another name.
+
+During editing:
+- Preserve existing accepted decisions.
+- Prefer short normative statements for rules and detailed explanatory sections for rationale.
+- Add links from the README or docs index only where useful.
+- Use exact paths, type names, outcome names, and identifiers found in the repository.
+- When referring to another repository, state clearly whether the dependency is current, optional, planned, or blocked.
+
+After editing:
+- Show every created and modified file.
+- Summarise the purpose of each file.
+- List every unresolved question or documentation conflict.
+- List any wording that required inference rather than direct extraction.
+- Run available Markdown formatting, lint, or link checks if already configured.
+- Show `git diff --stat`.
+- Show the documentation-only diff or a concise section-by-section summary.
+- Confirm that no runtime code or configuration changed.
+
+
+PROJECT: Project Mnemosyne
+REPOSITORY: https://github.com/hourwise/Project-Mnemosyne
+
+PRIMARY GOAL
+Create documentation that makes Mnemosyne's memory semantics, lifecycle, storage boundaries, provenance rules, and integration behaviour explicit without inventing unfinished functionality.
+
+AUTHORITY BOUNDARY
+Mnemosyne owns project memory records, provenance, source references, reliability scoring, contradiction representation, retrieval, context-pack construction, decay, revalidation, archival, and portable vault/Restart Pack semantics where implemented or accepted.
+Mnemosyne does not own action approval, tool execution authority, external side-effect policy, general orchestration, provider credentials, Ananke's authoritative action audit, or the IDE host.
+Never imply that Mnemosyne can grant permission, execute tools directly, overrule Ananke, or convert uncertain memory into authoritative truth.
+
+REQUESTED DOCUMENTS
+1. `docs/memory-lifecycle.md`
+   Define only repository-supported stages such as candidate, ingested, sourced, scored, indexed, retrieved, revalidated, decayed, conflicted, resolved, archived, and deleted. For each supported transition document initiator, evidence, validation, event/audit record, reversibility, retrieval effect, and governance requirement.
+2. `docs/data-classification.md`
+   Define durable project truth, task state, user instruction, inferred information, advisory performance memory, preference, generated summary, source reference, contradiction record, and sensitive/excluded material. Explain persistence, provenance, decay, promotion limits, export exclusions, and the distinction between reliability and authority.
+3. `docs/portable-vault-specification.md`
+   Document evidenced directory layout, record identity, schema versioning, source references, import/export validation, unknown-field behaviour, merge/conflict behaviour, path restrictions, excluded secrets, and portability guarantees/non-guarantees.
+4. `docs/restart-pack-semantics.md`
+   Define purpose, inputs, ordering, token/size budget, inclusion/exclusion, stale-data signalling, reliability thresholds, source references, and differences from raw history, context packs, and the Almanac/vault.
+5. `docs/integration/ananke-boundary.md`
+   Formalise memory advisory versus action authority, shared events, governed-action references, behaviour when either runtime is unavailable, and supported correlation identifiers.
+6. `docs/decisions/README.md`
+   Create an ADR index with number, title, status, date, affected packages, and superseding relationships.
+
+SPECIAL REVIEW QUESTIONS
+Do not silently decide: deletion semantics; portability of reliability scores; whether contradictions block retrieval; Restart Pack determinism; moved-source handling; separation of generated conclusions from source facts; missing-source behaviour; whether Ananke events are copied, referenced, or summarised.
+
+README CHANGES
+Add a concise Documentation section linking to the new files. Do not turn the README into a second architecture manual.
+
+DELIVERABLE STANDARD
+A maintainer should be able to answer: What may enter memory? Why is it trusted? How can trust change? What happens when sources conflict? What can be exported? What reaches a model? What remains advisory? What belongs to Ananke instead?

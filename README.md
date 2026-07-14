@@ -150,5 +150,7 @@ portability behavior without weakening the governed boundary.
 - [Validation and Compatibility](docs/VALIDATION_AND_COMPATIBILITY.md)
 - [Research Additions and Requirements](docs/PROJECT_MNEMOSYNE_RESEARCH_AND_REQUIREMENTS.md)
 - [ADR-0033: Frictionless Validation And Ecosystem Compatibility](docs/ADR-0033-FRICTIONLESS-VALIDATION-AND-ECOSYSTEM-COMPATIBILITY.md)
+- [ADR-XXXX: Dual-Principal Context Without Memory-Derived Authority](docs/ADR-XXXX-dual-principal-context-without-memory-authority.md)
+- [ADR-0034 (Superseded): Fates Dual-Principal And Compatibility Contract](docs/ADR-0034-ADOPTION-OF-THE-FATES-DUAL-PRINCIPAL-AND-COMPATIBILITY-CONTRACT.md)
 - [ADR-00XX: Provenance Admission Design Gate](docs/ADR-00XX-PROVENANCE-ADMISSION-DESIGN-GATE.md)
 - [ADR-XXXX: Provenance-Aware Content Ingestion](docs/ADR-XXXX-mnemosyne-provenance-aware-content-ingestion.md)
