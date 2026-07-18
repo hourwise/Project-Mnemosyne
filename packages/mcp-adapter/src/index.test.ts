@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { InMemoryAlmanacStore } from '@mnemosyne/almanac-store';
 import { InMemoryAuditStore } from '@mnemosyne/audit-engine';
+import { createTrustedOperationContext } from '@mnemosyne/adrasteia-adapter';
+import { PrincipalKind, ResourceScopeMode } from 'project-runtime-contracts';
 import type { ConflictRecord, MemoryRecord } from '@mnemosyne/schema';
 import { McpAlmanacServer } from './index.js';
 
@@ -41,6 +43,8 @@ describe('McpAlmanacServer', () => {
 
     expect(names).toEqual([
       'almanac_status',
+      'mnemosyne_inspect',
+      'mnemosyne_negotiate_protocol',
       'almanac_search',
       'almanac_get_context_pack',
       'almanac_read_memory',
@@ -54,14 +58,14 @@ describe('McpAlmanacServer', () => {
   });
 
   it('writes, searches, reads, and returns only injected source context', () => {
-    const { server } = createServer({ 'docs/ALMANAC_MODEL.md': 'Injected source context.' });
-    const saved = server.callTool('almanac_write_memory', { memory: memory() });
-    const searched = server.callTool('almanac_search', { text: 'governed' });
-    const read = server.callTool('almanac_read_memory', { id: 'mem_fact_001' });
-    const source = server.callTool('almanac_request_source_context', { memoryId: 'mem_fact_001' });
+    const { server, context } = createServer({ 'docs/ALMANAC_MODEL.md': 'Injected source context.' });
+    const saved = server.callTool('almanac_write_memory', { memory: memory() }, context);
+    const searched = server.callTool('almanac_search', { text: 'governed' }, context);
+    const read = server.callTool('almanac_read_memory', { id: 'mem_fact_001' }, context);
+    const source = server.callTool('almanac_request_source_context', { memoryId: 'mem_fact_001' }, context);
 
     expect(saved.isError).toBeUndefined();
-    expect(parsed(searched)).toMatchObject([{ id: 'mem_fact_001' }]);
+    expect(parsed(searched)).toMatchObject({ records: [{ id: 'mem_fact_001' }] });
     expect(parsed(read)).toMatchObject({ id: 'mem_fact_001' });
     expect(parsed(source)).toEqual({
       memoryId: 'mem_fact_001',
@@ -72,10 +76,10 @@ describe('McpAlmanacServer', () => {
   });
 
   it('builds context packs and records an audit event', () => {
-    const { server, audit } = createServer();
-    server.callTool('almanac_write_memory', { memory: memory() });
+    const { server, audit, context } = createServer();
+    server.callTool('almanac_write_memory', { memory: memory() }, context);
 
-    const result = server.callTool('almanac_get_context_pack', { task: 'governed memory' });
+    const result = server.callTool('almanac_get_context_pack', { task: 'governed memory' }, context);
 
     expect(parsed(result)).toMatchObject({ task: 'governed memory', relevantMemories: [{ id: 'mem_fact_001' }] });
     expect(audit.list().some((event) => event.eventType === 'CONTEXT_PACK_CREATED')).toBe(true);
@@ -83,7 +87,7 @@ describe('McpAlmanacServer', () => {
 
   it('journals and reports structured conflicts through audit hooks', () => {
     const reported: ConflictRecord[] = [];
-    const { server, audit } = createServer(undefined, reported);
+    const { server, audit, context } = createServer(undefined, reported);
     const conflict: ConflictRecord = {
       id: 'conflict_memory_001',
       type: 'memory_vs_code',
@@ -95,22 +99,22 @@ describe('McpAlmanacServer', () => {
       createdAt,
     };
 
-    expect(server.callTool('almanac_append_journal', { entry: 'Checked memory safety.' }).isError).toBeUndefined();
-    expect(server.callTool('almanac_report_conflict', { conflict }).isError).toBeUndefined();
+    expect(server.callTool('almanac_append_journal', { entry: 'Checked memory safety.' }, context).isError).toBeUndefined();
+    expect(server.callTool('almanac_report_conflict', { conflict }, context).isError).toBeUndefined();
     expect(reported).toEqual([conflict]);
     expect(audit.list().map((event) => event.eventType)).toContain('JOURNAL_APPENDED');
     expect(audit.list().map((event) => event.eventType)).toContain('CONFLICT_DETECTED');
   });
 
   it('revalidates a memory against supplied observations', () => {
-    const { server } = createServer();
-    server.callTool('almanac_write_memory', { memory: memory() });
+    const { server, context } = createServer();
+    server.callTool('almanac_write_memory', { memory: memory() }, context);
 
     const result = server.callTool('almanac_revalidate', {
       memoryId: 'mem_fact_001',
       currentSourceHash: replacementHash,
       sourceAvailable: true,
-    });
+    }, context);
 
     expect(parsed(result)).toMatchObject({ status: 'stale', reasons: ['SOURCE_HASH_CHANGED'] });
   });
@@ -131,9 +135,19 @@ function createServer(sourceTextByPath?: Record<string, string>, reported: Confl
     server: new McpAlmanacServer({
       store,
       audit,
+      runtimeScope: { projectId: 'project_mnemosyne', runtimeInstanceId: 'runtime_mcp_test' },
       sourceTextByPath,
       now: () => createdAt,
       onConflictReported: (conflict) => reported.push(conflict),
+    }),
+    context: createTrustedOperationContext({
+      execution: {
+        authenticatedPrincipal: { id: 'service_mcp_test', kind: PrincipalKind.Service },
+        actingPrincipal: { id: 'agent_mcp_test', kind: PrincipalKind.Agent },
+        runtimeId: 'mnemosyne', runtimeInstanceId: 'runtime_mcp_test', sessionId: 'session_mcp_test', projectId: 'project_mnemosyne',
+      },
+      scope: { mode: ResourceScopeMode.Bounded, projectId: 'project_mnemosyne' },
+      purpose: 'mcp_test',
     }),
   };
 }

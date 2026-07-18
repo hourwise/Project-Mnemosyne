@@ -142,15 +142,17 @@ Maintainers should be able to search both passing and failing test rows.
 
 ## Ecosystem Compatibility
 
-Combined validation should be added only after Ananke and Mnemosyne both expose stable runnable surfaces.
+Mnemosyne validates the immutable Project Adrasteia baseline and a read-only
+pinned Ananke comparator. This is schema/adapter compatibility only; it does not
+claim a live Ananke transport or inbound decision integration.
 
 Compatibility scenarios:
 
 - Ananke only.
 - Mnemosyne only.
-- Runtime Contracts only.
+- Project Adrasteia contracts only.
 - Ananke plus Mnemosyne.
-- Ananke plus Mnemosyne plus Runtime Contracts.
+- Ananke plus Mnemosyne plus Project Adrasteia.
 
 Checks:
 

@@ -21,6 +21,7 @@
     "mnemosyne": "./dist/index.js"
   },
   "dependencies": {
-    "@mnemosyne/runtime-core": "*"
+    "@mnemosyne/runtime-core": "*",
+    "project-runtime-contracts": "0.4.0"
   }
 }

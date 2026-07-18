@@ -1,4 +1,5 @@
 import { createAuditEvent, type AuditStore } from '@mnemosyne/audit-engine';
+import type { MnemosyneOperationContext } from '@mnemosyne/adrasteia-adapter';
 import type { ConflictRecord, ContextPack } from '@mnemosyne/schema';
 
 export type AnankeNotificationReason =
@@ -48,7 +49,7 @@ export class AnankeSafetyBridge {
     private readonly audit: AuditStore,
   ) {}
 
-  async notifyConflict(conflict: ConflictRecord): Promise<AnankeNotificationDelivery> {
+  async notifyConflict(conflict: ConflictRecord, context?: MnemosyneOperationContext): Promise<AnankeNotificationDelivery> {
     const sourceMissing = conflict.type === 'active_memory_source_missing';
     return this.deliver({
       reason: sourceMissing ? 'SOURCE_MISSING' : 'CONFLICT_DETECTED',
@@ -56,19 +57,20 @@ export class AnankeSafetyBridge {
         ? `Required source evidence is missing for ${conflict.memoryIds.join(', ') || 'the current context'}.`
         : `Mnemosyne detected a ${conflict.type} conflict that requires resolution.`,
       metadata: {
+        ...safeContextMetadata(context),
         conflictId: conflict.id,
         conflictType: conflict.type,
-        memoryIds: conflict.memoryIds,
+        memoryCount: conflict.memoryIds.length,
         shouldAnankeContinue: conflict.shouldAnankeContinue,
         recommendedResolution: conflict.recommendedResolution,
       },
     });
   }
 
-  async notifyContextSafety(context: ContextPack): Promise<AnankeNotificationDelivery[]> {
+  async notifyContextSafety(context: ContextPack, operationContext?: MnemosyneOperationContext): Promise<AnankeNotificationDelivery[]> {
     const deliveries: AnankeNotificationDelivery[] = [];
     for (const conflict of context.conflicts) {
-      deliveries.push(await this.notifyConflict(conflict));
+      deliveries.push(await this.notifyConflict(conflict, operationContext));
     }
 
     if (context.warnings.some((warning) => /low-reliability/i.test(warning))) {
@@ -76,7 +78,7 @@ export class AnankeSafetyBridge {
         await this.deliver({
           reason: 'LOW_RELIABILITY_CONTEXT',
           message: 'Mnemosyne context contains low-reliability memory.',
-          metadata: { task: context.task, warnings: context.warnings },
+          metadata: { ...safeContextMetadata(operationContext), relevantMemoryCount: context.relevantMemories.length },
         }),
       );
     }
@@ -86,7 +88,7 @@ export class AnankeSafetyBridge {
         await this.deliver({
           reason: 'ACTION_CONTEXT_INSUFFICIENT',
           message: 'Mnemosyne could not provide governed memory for the requested task.',
-          metadata: { task: context.task, openQuestions: context.openQuestions },
+          metadata: { ...safeContextMetadata(operationContext), openQuestionCount: context.openQuestions.length },
         }),
       );
     }
@@ -107,4 +109,19 @@ export class AnankeSafetyBridge {
       return { notification, delivered: false, error: message };
     }
   }
+}
+
+function safeContextMetadata(context?: MnemosyneOperationContext): Record<string, unknown> {
+  if (!context) return { sourceRuntime: 'mnemosyne' };
+  return {
+    sourceRuntime: 'mnemosyne',
+    requestId: context.correlation.requestId,
+    correlationId: context.correlation.correlationId,
+    causationId: context.correlation.causationId,
+    projectId: context.scope.projectId,
+    tenantId: context.scope.tenantId,
+    workspaceId: context.scope.workspaceId,
+    actingPrincipalId: context.execution.actingPrincipal.id,
+    auditReference: context.auditReference?.auditId,
+  };
 }

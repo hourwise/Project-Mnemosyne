@@ -1,5 +1,7 @@
 # ADR-XXXX: Mnemosyne Handling of Dual-Principal Context Without Memory-Derived Authority
 
+> **Historical status override:** Superseded by [ADR-0035](ADR-0035-ADRASTEIA-STAGE-A-MEMORY-BOUNDARY.md) on 2026-07-18.
+
 - **Status:** Accepted — implementation pending
 - **Date:** 2026-07-14
 - **Parent decision:** Dual-Principal Identity, Scoped MCP Delegation, and Cross-Runtime Compatibility

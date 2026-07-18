@@ -8,6 +8,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@mnemosyne/schema': resolve(__dirname, 'packages/schema/src/index.ts'),
+      '@mnemosyne/adrasteia-adapter': resolve(__dirname, 'packages/adrasteia-adapter/src/index.ts'),
+      '@mnemosyne/memory-boundary': resolve(__dirname, 'packages/memory-boundary/src/index.ts'),
       '@mnemosyne/portable-vault': resolve(__dirname, 'packages/portable-vault/src/index.ts'),
       '@mnemosyne/restart-pack-engine': resolve(__dirname, 'packages/restart-pack-engine/src/index.ts'),
       '@mnemosyne/audit-engine': resolve(__dirname, 'packages/audit-engine/src/index.ts'),
@@ -31,11 +33,13 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['packages/*/src/**/*.test.ts'],
+    include: ['packages/*/src/**/*.test.ts', 'tests/**/*.test.ts'],
     server: {
       deps: {
         inline: [
           '@mnemosyne/schema',
+          '@mnemosyne/adrasteia-adapter',
+          '@mnemosyne/memory-boundary',
           '@mnemosyne/portable-vault',
           '@mnemosyne/restart-pack-engine',
           '@mnemosyne/audit-engine',

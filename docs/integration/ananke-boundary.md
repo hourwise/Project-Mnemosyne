@@ -121,11 +121,11 @@ formal fields in a shared protocol:
 - task text in context notifications
 - Mnemosyne audit timestamps
 
-Conflict and memory IDs are notification metadata; task text is metadata only on
-context-safety notifications; timestamps are present on Mnemosyne's local audit
-events, not on `AnankeNotification`. The docs mention future shared fields such
-as runtime identity and protocol version, but those fields are not implemented
-in the current notification payloads.
+Stage-A notifications may carry safe Project Adrasteia source runtime,
+request/correlation/causation, tenant/project/workspace, acting-principal and
+audit-reference metadata. They do not carry raw memory text, snippets, task text
+or credentials by default. The adapter remains outbound-only and does not invent
+an inbound Ananke decision surface.
 
 ## Non-Goals In The Current Repository
 
@@ -151,6 +151,6 @@ reference, or summarized.
 
 ### Shared Runtime Identity
 
-Existing docs name timestamp, runtime identity, and future protocol fields as
-desired correlation points, but current code exposes only timestamps and
-notification metadata.
+Runtime identity and protocol compatibility are now exposed by Mnemosyne's
+transport-neutral inspection facade. Notification delivery still does not imply
+that Ananke received, approved or executed anything.

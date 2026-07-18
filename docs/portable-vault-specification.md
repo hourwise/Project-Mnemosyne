@@ -214,8 +214,12 @@ The current repository does not implement:
 - access-classification-based export filtering
 - encryption of vault files
 
-`accessClassification` is stored, but it is metadata rather than an enforced
-export control in the current code.
+`accessClassification` is enforced at the public vault boundary. Every
+initialize, read, list, write, export and import call requires trusted current
+context that matches the runtime's configured project. Restricted records are
+excluded from export; sensitive records require an exact trusted evaluator;
+public/internal records remain limited to the matching project. Filtering and
+credential inspection occur before data is returned or rendered.
 
 ## Portability Guarantees
 
@@ -238,7 +242,7 @@ The current repository does not guarantee:
 
 - merge conflict resolution during import
 - preservation of unknown fields
-- secret redaction or encryption
+- complete secret detection or encryption
 - copied source content availability outside the originating project
 - automatic recomputation of reliability after import
 - automatic handling for renamed or moved source files
@@ -256,4 +260,5 @@ its meaning.
 
 Reliability is part of the stored record and round-trips through export/import,
 but current repository evidence does not define whether importers should trust
-that score as-is or recompute it locally.
+that score as-is or recompute it locally. Imported reliability remains evidence,
+not current authority.

@@ -129,3 +129,11 @@ must run these steps in one runtime transaction.
 - `archived` exists only in `ProjectRecordStatus`.
 - Memory and vault deletion semantics are not currently defined by a dedicated
   API or audit workflow.
+
+## Project Adrasteia Stage-A Boundary
+
+Public lifecycle entry points now require trusted current operation context and
+matching project scope. Canonical principal, correlation and historical
+approval/grant/audit references are stored as attribution evidence only. Shared
+content preflight and provenance admission remain deferred; no inbound Ananke
+decision is interpreted by the lifecycle.

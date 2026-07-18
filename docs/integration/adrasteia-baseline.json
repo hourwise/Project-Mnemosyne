@@ -1,0 +1,28 @@
+{
+  "repository": "https://github.com/hourwise/Project-Adrasteia",
+  "tag": "adrasteia-adoption-v0.4.0-protocol-1.4.0",
+  "commit": "124b6aee2629a3147739934ad5f1b45b32c8ba46",
+  "package": {
+    "name": "project-runtime-contracts",
+    "version": "0.4.0",
+    "protocolVersion": "1.4.0",
+    "minimumSupportedProtocolVersion": "1.0.0",
+    "supportedProtocolRange": { "minimum": "1.0.0", "maximum": "1.4.0" }
+  },
+  "artifact": {
+    "url": "https://github.com/hourwise/Project-Adrasteia/releases/download/adrasteia-adoption-v0.4.0-protocol-1.4.0/project-runtime-contracts-0.4.0.tgz",
+    "sha256": "11ee062b079f74d2a4558af315c9b9b12a6aede291d409c48f038d93c416e2c2",
+    "sidecarUrl": "https://github.com/hourwise/Project-Adrasteia/releases/download/adrasteia-adoption-v0.4.0-protocol-1.4.0/project-runtime-contracts-0.4.0.tgz.baseline.json",
+    "sidecarSha256": "9413cf842ef1167dbe33110f5ed525eb5e5360df9e6a8aac4591aa16033c1ca2"
+  },
+  "contentPreflightIncluded": false,
+  "adoptedFamilies": ["identity", "execution-context", "resource-scope", "correlation", "portable-references", "runtime-inspection", "compatibility", "protocol-negotiation"],
+  "adapterOwnedFamilies": ["operation-context-composition", "runtime-inspection-composition", "Mnemosyne-to-Adrasteia mapping"],
+  "deferredFamilies": ["content-preflight", "provenance-admission", "active-grant-verification", "state-handle-service"],
+  "anankeComparator": {
+    "repository": "https://github.com/hourwise/Project-Ananke",
+    "tag": "ananke-adrasteia-adoption-v0.1.0-protocol-1.4.0",
+    "commit": "dcbb115c5798072221afdd2e4fdd36e786defddf"
+  },
+  "verificationCommands": ["npm run verify:adrasteia", "npm run test:adrasteia", "npm run test:ananke"]
+}

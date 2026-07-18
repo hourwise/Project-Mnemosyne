@@ -11,6 +11,11 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint packages --ext .ts",
+    "verify:adrasteia": "node scripts/verify-adrasteia-baseline.mjs",
+    "test:adrasteia": "node scripts/adrasteia-conformance.mjs",
+    "test:ananke": "node scripts/verify-ananke-comparator.mjs",
+    "test:inspection": "node scripts/runtime-inspection-smoke.mjs",
+    "validate": "npm run verify:adrasteia && npm run build && npm run lint && npm test && npm run test:adrasteia && npm run test:ananke && npm run test:bench && npm run demo:basic && npm run demo:full && npm run test:inspection",
     "format": "prettier --write .",
     "dev:runtime": "npm run dev -w @mnemosyne/runtime-core",
     "dev:cli": "npm run dev -w @mnemosyne/cli",
@@ -20,6 +25,7 @@
   },
   "dependencies": {
     "better-sqlite3": "^12.11.1",
+    "project-runtime-contracts": "https://github.com/hourwise/Project-Adrasteia/releases/download/adrasteia-adoption-v0.4.0-protocol-1.4.0/project-runtime-contracts-0.4.0.tgz",
     "zod": "^3.23.0"
   },
   "devDependencies": {
@@ -29,6 +35,7 @@
     "prettier": "^3.3.0",
     "tsx": "^4.0.0",
     "typescript": "^5.5.0",
+    "typescript-eslint": "^8.64.0",
     "vitest": "^2.0.0"
   }
 }

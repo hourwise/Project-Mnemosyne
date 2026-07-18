@@ -9,6 +9,7 @@ import { ReliabilityEngine } from '@mnemosyne/reliability-engine';
 import { MnemosyneRuntime } from '@mnemosyne/runtime-core';
 import { scoreReliability } from '@mnemosyne/scoring-engine';
 import type { ContextPack, MemoryRecord, SourceReference } from '@mnemosyne/schema';
+import { PrincipalKind, ResourceScopeMode } from 'project-runtime-contracts';
 
 const fixtureRoot = join(dirname(fileURLToPath(import.meta.url)), 'fixture');
 
@@ -23,15 +24,26 @@ export interface FullLifecycleDemoResult {
 }
 
 export function runFullLifecycleDemo(): FullLifecycleDemoResult {
-  const runtime = new MnemosyneRuntime({ projectRoot: fixtureRoot });
+  const runtime = new MnemosyneRuntime({ projectRoot: fixtureRoot, projectId: 'project_full_lifecycle_demo' });
+  const operationContext = runtime.createOperationContext({
+    execution: {
+      authenticatedPrincipal: { id: 'service_full_lifecycle_demo', kind: PrincipalKind.Service },
+      actingPrincipal: { id: 'agent_full_lifecycle_demo', kind: PrincipalKind.Agent },
+      runtimeId: 'mnemosyne',
+      runtimeInstanceId: runtime.runtimeScope.runtimeInstanceId,
+      sessionId: 'session_full_lifecycle_demo',
+      projectId: 'project_full_lifecycle_demo',
+    },
+    scope: { mode: ResourceScopeMode.Bounded, projectId: 'project_full_lifecycle_demo' },
+    purpose: 'local_full_lifecycle_demo',
+  });
   runtime.init();
 
-  // Init and onboard: extracted candidate memories are persisted by the runtime store.
-  const onboarding = runtime.onboarding.onboard(fixtureRoot);
-  for (const memory of onboarding.memories) runtime.store.markStatus(memory.id, 'active');
+  // Explicit local demo helper still applies the same bounded context and credential guard.
+  const onboarding = runtime.onboardLocalDemo(operationContext, fixtureRoot);
 
   // Recall and revalidate a stored decision.
-  const recalled = runtime.store.search({ text: 'SQLite', kind: 'decision' })[0];
+  const recalled = runtime.searchMemories(operationContext, { text: 'SQLite', kind: 'decision' })[0];
   if (!recalled) throw new Error('Demo fixture did not produce a SQLite memory.');
   const now = new Date().toISOString();
   const revalidated = new ReliabilityEngine().revalidate(recalled, {
@@ -40,18 +52,20 @@ export function runFullLifecycleDemo(): FullLifecycleDemoResult {
     sourceAvailable: true,
     confirmations: 1,
   });
-  runtime.store.updateMemory(revalidated);
+  const server = runtime.createMcpServer(sourceTextByPath());
+  const update = server.callTool('almanac_write_memory', { memory: revalidated }, operationContext);
+  if (update.isError) throw new Error(update.content[0]?.text ?? 'Memory update failed.');
 
   // Build context through the governed MCP surface, which records the context audit event.
-  const contextResult = runtime.createMcpServer(sourceTextByPath()).callTool('almanac_get_context_pack', {
+  const contextResult = server.callTool('almanac_get_context_pack', {
     task: 'Explain the SQLite persistence decision.',
     includeTentative: false,
-  });
+  }, operationContext);
   if (contextResult.isError) throw new Error(contextResult.content[0]?.text ?? 'Context pack failed.');
   const context = JSON.parse(contextResult.content[0]?.text ?? '{}') as ContextPack;
 
   // Surface a user instruction that conflicts with the onboarded law.
-  const conflicts = new ConflictEngine().detect(runtime.store.search({}), {
+  const conflicts = new ConflictEngine().detect(runtime.searchMemories(operationContext), {
     now,
     userInstructions: [
       {

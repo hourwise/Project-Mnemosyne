@@ -8,6 +8,8 @@
   },
   "include": ["src"],
   "references": [
-    { "path": "../schema" }
+    { "path": "../schema" },
+    { "path": "../adrasteia-adapter" },
+    { "path": "../memory-boundary" }
   ]
 }

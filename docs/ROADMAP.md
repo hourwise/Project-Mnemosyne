@@ -217,7 +217,7 @@ Mnemosyne responsibilities:
 - Session memory.
 - Source-map and project-graph maintenance.
 
-Runtime Contracts should eventually hold stable shared contracts:
+Project Adrasteia now holds the adopted stable shared contracts:
 
 - Runtime identity.
 - Protocol version.
@@ -226,7 +226,8 @@ Runtime Contracts should eventually hold stable shared contracts:
 - Validation report schemas.
 - Cross-runtime audit/event field contracts.
 
-Runtime Contracts must not contain Mnemosyne engines, stores, scoring, retrieval, conflict detection, or persistence logic.
+Project Adrasteia must not contain Mnemosyne engines, stores, scoring,
+retrieval, conflict detection, or persistence logic.
 
 ## Future Coordination
 
@@ -234,7 +235,8 @@ A future coordinator may become useful for runtime registration, capability nego
 
 Do not start that project yet.
 
-The need should emerge from real Ananke, Mnemosyne, Runtime Contracts, and Moirae Code integration work.
+The need should emerge from real Ananke, Mnemosyne, Project Adrasteia, and
+Moirae Code integration work.
 
 ## Documentation Conflict
 

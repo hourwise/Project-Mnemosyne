@@ -21,6 +21,7 @@
   "dependencies": {
     "@mnemosyne/almanac-store": "*",
     "@mnemosyne/runtime-core": "*",
-    "@mnemosyne/schema": "*"
+    "@mnemosyne/schema": "*",
+    "project-runtime-contracts": "0.4.0"
   }
 }

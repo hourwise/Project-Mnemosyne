@@ -3,6 +3,7 @@ import { release, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { SqliteAlmanacStore } from '@mnemosyne/almanac-store';
 import { MnemosyneRuntime } from '@mnemosyne/runtime-core';
+import { PrincipalKind, ResourceScopeMode } from 'project-runtime-contracts';
 import type { MemoryRecord } from '@mnemosyne/schema';
 import {
   summarizeValidationResults,
@@ -26,7 +27,7 @@ export async function runQuickValidation(
   const projectRoot = options.projectRoot ?? process.cwd();
   const results = await Promise.all([
     executeScenario('MNEMOSYNE-QUICK-001', 'Runtime', 'Initialises the Almanac and returns status.', async () => {
-      const runtime = new MnemosyneRuntime({ projectRoot });
+      const runtime = new MnemosyneRuntime({ projectRoot, projectId: 'project_testbench' });
       runtime.init();
       const status = runtime.status();
       if (status.activeMemories !== 0 || status.auditEvents < 1) {
@@ -37,12 +38,14 @@ export async function runQuickValidation(
       await validateSqlitePersistence(options.temporaryDirectory);
     }),
     executeScenario('MNEMOSYNE-QUICK-003', 'MCP Adapter', 'Builds a governed context pack without raw filesystem access.', async () => {
-      const runtime = new MnemosyneRuntime({ projectRoot });
-      runtime.store.createMemory(validationMemory());
+      const runtime = new MnemosyneRuntime({ projectRoot, projectId: 'project_testbench' });
+      const trustedContext = localContext(runtime, 'project_testbench');
       const server = runtime.createMcpServer({
         'docs/ALMANAC_MODEL.md': 'The Almanac stores governed project memory.',
       });
-      const result = server.callTool('almanac_get_context_pack', { task: 'governed project memory' });
+      const write = server.callTool('almanac_write_memory', { memory: validationMemory() }, trustedContext);
+      if (write.isError) throw new Error(write.content[0]?.text ?? 'Memory write failed.');
+      const result = server.callTool('almanac_get_context_pack', { task: 'governed project memory' }, trustedContext);
       if (result.isError) throw new Error(result.content[0]?.text ?? 'Context tool failed.');
       const context = JSON.parse(result.content[0]?.text ?? '{}') as { relevantMemories?: Array<{ id: string }> };
       if (context.relevantMemories?.[0]?.id !== 'mem_fact_validation') {
@@ -78,6 +81,21 @@ export async function runQuickValidation(
     summary: summarizeValidationResults(results),
     tests: results,
   };
+}
+
+function localContext(runtime: MnemosyneRuntime, projectId: string) {
+  return runtime.createOperationContext({
+    execution: {
+      authenticatedPrincipal: { id: 'service_testbench', kind: PrincipalKind.Service },
+      actingPrincipal: { id: 'agent_testbench', kind: PrincipalKind.Agent },
+      runtimeId: 'mnemosyne',
+      runtimeInstanceId: runtime.runtimeScope.runtimeInstanceId,
+      sessionId: 'session_testbench',
+      projectId,
+    },
+    scope: { mode: ResourceScopeMode.Bounded, projectId },
+    purpose: 'local_testbench_validation',
+  });
 }
 
 export async function writeValidationReport(report: ValidationReport, outputPath: string): Promise<void> {

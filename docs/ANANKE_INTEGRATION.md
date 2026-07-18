@@ -30,9 +30,9 @@ Combined Ananke and Mnemosyne validation must eventually prove these rules:
 - MCP tool names and memory namespaces must not collide.
 - Cross-runtime audit events must be correlatable by timestamp, runtime identity, and future protocol fields.
 
-## Runtime Contracts Boundary
+## Project Adrasteia Boundary
 
-Runtime Contracts may later hold stable compatibility shapes used by both projects:
+Project Adrasteia now supplies stable compatibility shapes used by both projects:
 
 - Runtime identity.
 - Protocol version.
@@ -41,7 +41,7 @@ Runtime Contracts may later hold stable compatibility shapes used by both projec
 - Health/readiness contract.
 - Cross-runtime audit/event fields.
 
-Runtime Contracts must remain contracts-only. Mnemosyne must not move runtime behavior, persistence, scoring, retrieval, conflict detection, context-pack generation, or Almanac storage into that package.
+Project Adrasteia remains contracts-only. Mnemosyne does not move runtime behavior, persistence, scoring, retrieval, conflict detection, context-pack generation, or Almanac storage into that package. The current bridge is outbound advisory-only, carries safe portable correlation/scope metadata when supplied, and has no inbound Ananke decision API.
 
 ## Future Coordinator
 

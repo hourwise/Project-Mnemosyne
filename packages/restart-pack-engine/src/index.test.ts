@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ProjectRecord } from '@mnemosyne/schema';
+import { createTrustedOperationContext } from '@mnemosyne/adrasteia-adapter';
+import { PrincipalKind, ResourceScopeMode } from 'project-runtime-contracts';
 import { RestartPackEngine } from './index.js';
 
 const hash = 'sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
@@ -11,6 +13,15 @@ const project = {
   createdAt: timestamp,
   updatedAt: timestamp,
 };
+const context = createTrustedOperationContext({
+  execution: {
+    authenticatedPrincipal: { id: 'service_restart_test', kind: PrincipalKind.Service },
+    actingPrincipal: { id: 'agent_restart_test', kind: PrincipalKind.Agent },
+    runtimeId: 'mnemosyne', runtimeInstanceId: 'runtime_restart_test', sessionId: 'session_restart_test', projectId: 'project_mnemosyne',
+  },
+  scope: { mode: ResourceScopeMode.Bounded, projectId: 'project_mnemosyne' },
+  purpose: 'restart_pack_test',
+});
 
 function record(overrides: Record<string, unknown> = {}) {
   return ProjectRecord.parse({
@@ -46,7 +57,7 @@ function source() {
 describe('RestartPackEngine', () => {
   it('renders deterministic, source-linked, stale-aware restart context', () => {
     const engine = new RestartPackEngine();
-    const pack = engine.build(
+    const pack = engine.build(context,
       {
         project,
         task: record(),
@@ -73,7 +84,7 @@ describe('RestartPackEngine', () => {
       { now: () => timestamp },
     );
 
-    expect(pack.warnings).toEqual(['Restart pack includes 1 stale record.']);
+    expect(pack.warnings).toContain('Restart pack includes 1 stale record.');
     expect(engine.render(pack)).toContain('docs/PROJECT_MNEMOSYNE_RESEARCH_AND_REQUIREMENTS.md:31-42');
     expect(engine.render(pack)).toContain('Branch: feature/portable-vault');
     expect(pack.tokenEstimate).toBeGreaterThan(0);
@@ -81,11 +92,11 @@ describe('RestartPackEngine', () => {
 
   it('requires a task-state record and rejects cross-project records', () => {
     const engine = new RestartPackEngine();
-    expect(() => engine.build({ project, task: record({ kind: 'requirement', scope: 'project_truth' }) })).toThrow(
+    expect(() => engine.build(context, { project, task: record({ kind: 'requirement', scope: 'project_truth' }) })).toThrow(
       'task-state',
     );
     expect(() =>
-      engine.build({
+      engine.build(context, {
         project,
         task: record(),
         relevant: [record({ id: 'record_fact_001', projectId: 'project_other', kind: 'fact', scope: 'project_truth' })],
@@ -95,7 +106,7 @@ describe('RestartPackEngine', () => {
 
   it('omits optional records deterministically when constrained by token budget', () => {
     const engine = new RestartPackEngine();
-    const pack = engine.build(
+    const pack = engine.build(context,
       {
         project,
         task: record(),

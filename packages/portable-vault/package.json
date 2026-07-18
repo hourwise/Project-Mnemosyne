@@ -18,6 +18,8 @@
     "dev": "tsc --watch"
   },
   "dependencies": {
+    "@mnemosyne/adrasteia-adapter": "*",
+    "@mnemosyne/memory-boundary": "*",
     "@mnemosyne/schema": "*"
   }
 }

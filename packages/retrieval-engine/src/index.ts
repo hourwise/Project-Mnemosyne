@@ -1,7 +1,7 @@
+import { MemoryRecord } from '@mnemosyne/schema';
 import type {
   ConflictRecord,
   ContextPack,
-  MemoryRecord,
   MemoryStatus,
   SourceSnippet,
 } from '@mnemosyne/schema';
@@ -77,7 +77,7 @@ export class RetrievalEngine {
     const tokenBudget = options.tokenBudget ?? Number.POSITIVE_INFINITY;
     const ranked = this.rankMemories(task, memories, options);
     const selected = selectWithinBudget(ranked, maxMemories, tokenBudget);
-    const relevantMemories = selected.map((rankedMemory) => rankedMemory.memory);
+    const relevantMemories = selected.map((rankedMemory) => MemoryRecord.parse(rankedMemory.memory));
     const relevantMemoryIds = new Set(relevantMemories.map((memory) => memory.id));
     const relevantConflicts = conflicts.filter((conflict) =>
       conflict.memoryIds.length === 0 || conflict.memoryIds.some((id) => relevantMemoryIds.has(id)),

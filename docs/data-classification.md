@@ -36,7 +36,7 @@ scope and is delegated to Ananke where integrated.
 | Generated summary              | Derived `ContextPack`, rendered `RestartPack`, or `ProjectRecord` with `kind: generated-output`; `JOURNAL_APPENDED` is audit metadata, not a typed summary | Context packs and restart packs are derived outputs; `generated-output` records persist only if explicitly written | Context and restart outputs carry source-linked inputs; journal metadata is arbitrary caller-supplied data | Warnings may signal stale or low-reliability inputs                                            | No automatic promotion into durable truth is implemented                     | Restart packs are not vault exports; stored `generated-output` records are exported |
 | Source reference               | `SourceReference`                                                                                                                                          | Embedded in memory, conflict, context, and vault records                                                           | Required for `MemoryRecord` and for `ProjectRecord.sources`                                                | Hash and availability changes drive revalidation                                               | A source reference alone is not a memory claim                               | Included wherever the parent record is exported                                     |
 | Contradiction record           | `ConflictRecord` or `ProjectRecord` with `kind: conflict`                                                                                                  | `ConflictRecord` is transient unless separately stored; portable-vault `conflict` records persist when written     | Contains explicit sources and affected memory IDs when available                                           | Conflict status is surfaced, not auto-resolved                                                 | A conflict does not itself rewrite project truth                             | Transient conflicts are not exported unless stored as project records               |
-| Sensitive or excluded material | `accessClassification` values `public`, `internal`, `sensitive`, `restricted`                                                                              | Classification field persists on `ProjectRecord`                                                                   | Same source rules apply                                                                                    | No automatic redaction or secret scanning is implemented                                       | Classification does not yet enforce storage or export filtering              | Current export includes classified records unchanged                                |
+| Sensitive or excluded material | `accessClassification` values `public`, `internal`, `sensitive`, `restricted` on `MemoryRecord` and `ProjectRecord`                                           | Classification persists with the record; credential material is rejected before writes/imports                      | Same source rules apply                                                                                    | Restricted is fail-closed; sensitive requires a trusted local evaluator                         | Classification is evaluated before retrieval, context, Restart Pack and export | Restricted is excluded; sensitive is included only by explicit trusted policy |
 
 ## Durable Project Truth
 
@@ -92,8 +92,8 @@ records by built-in code.
 
 The accepted provenance-admission ADR now has structural source support:
 `ProvenanceActor`, `ProvenanceSourceKind`, and `ProvenanceSource` are exported by
-`@mnemosyne/schema`. They are not yet attached to `MemoryRecord` or
-`ProjectRecord`. The current ingestion path still has no preflight receipt,
+`@mnemosyne/schema`. Canonical Adrasteia principal/correlation attribution can
+now be attached to records as evidence only. The current ingestion path still has no preflight receipt,
 decision ID, exposure level, or truncation fields in `MemoryRecord`, and it does
 not yet enforce the accepted admission contract.
 
@@ -128,9 +128,12 @@ value that must be recomputed after import.
 
 ### Sensitive And Excluded Material
 
-The schema carries `accessClassification`, but current export/import behavior
-does not enforce exclusion, redaction, or encryption. Secret-handling semantics
-remain future work rather than a current guarantee.
+Classification is enforced before retrieval, rendering and export. `restricted`
+records fail closed; `sensitive` records require an exact trusted evaluator
+decision and are audited by the caller's boundary. The high-confidence credential
+guard detects private keys, authorization headers, bearer tokens and known
+secret-bearing field names. It is incomplete, pluggable and not a DLP product;
+encryption is deferred.
 
 ### Separation Of Generated Conclusions From Source Facts
 

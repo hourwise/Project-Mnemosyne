@@ -26,8 +26,35 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify immutable Adrasteia baseline
+        run: npm run verify:adrasteia
+
       - name: Build all packages
         run: npm run build
 
-      - name: Run tests
+      - name: Lint
+        run: npm run lint
+
+      - name: Run full tests
         run: npm test
+
+      - name: Run Adrasteia conformance
+        run: npm run test:adrasteia
+
+      - name: Run pinned Ananke compatibility
+        run: npm run test:ananke
+
+      - name: Run testbench
+        run: npm run test:bench
+
+      - name: Run basic demo
+        run: npm run demo:basic
+
+      - name: Run full lifecycle demo
+        run: npm run demo:full
+
+      - name: Run MCP and runtime inspection smoke
+        run: npm run test:inspection
+
+      - name: Check diff whitespace
+        run: git diff --check

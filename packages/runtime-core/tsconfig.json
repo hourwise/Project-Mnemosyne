@@ -9,6 +9,8 @@
   "include": ["src"],
   "references": [
     { "path": "../schema" },
+    { "path": "../adrasteia-adapter" },
+    { "path": "../memory-boundary" },
     { "path": "../audit-engine" },
     { "path": "../almanac-store" },
     { "path": "../onboarding-engine" },

@@ -38,8 +38,9 @@ The task record is mandatory and must be:
 - `kind: task-state`
 - `scope: task_state`
 
-The runtime-level helper `createRestartPack(taskId, selection)` resolves record
-IDs from the portable vault before calling the engine.
+The runtime-level helper `createRestartPack(context, taskId, selection)` resolves
+record IDs from the portable vault before calling the engine. It requires trusted
+current context and matching project scope.
 
 ## Selection Model
 
@@ -194,3 +195,10 @@ future automatic record-selection strategy.
 Portable records may carry multiple source references, but restart packs
 currently render only the first one. The repository does not yet define how a
 multi-source record should be summarized when source separation matters.
+
+## Stage-A Safety Boundary
+
+Classification and the credential-material guard run before selection, token
+budgeting and rendering. Restricted records are excluded; sensitive records
+require a trusted evaluator. Pack text always states that it is evidence, not
+instruction or authority. No credentials or reusable state handles are rendered.

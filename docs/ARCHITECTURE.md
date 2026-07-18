@@ -28,7 +28,13 @@ Ananke governs what may execute.
 Mnemosyne governs what may be believed and remembered.
 ```
 
-Runtime Contracts may later provide stable shared protocol contracts such as runtime identity, protocol version, capability manifests, validation report schemas, and health contracts. Runtime Contracts must not contain Mnemosyne runtime behavior, engines, persistence, scoring, retrieval, or memory stores.
+Project Adrasteia now provides the adopted stable portable contracts for runtime
+identity, protocol version, capability manifests, health, readiness,
+registration, correlation, principal identity and resource scope. The pure
+`@mnemosyne/adrasteia-adapter` sits at the runtime boundary; the local
+`@mnemosyne/memory-boundary` enforces classification and credential safeguards.
+Project Adrasteia contains no Mnemosyne behavior, engines, persistence, scoring,
+retrieval or memory stores.
 
 See also:
 

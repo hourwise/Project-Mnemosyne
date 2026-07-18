@@ -2,6 +2,8 @@
   "files": [],
   "references": [
     { "path": "./packages/schema" },
+    { "path": "./packages/adrasteia-adapter" },
+    { "path": "./packages/memory-boundary" },
     { "path": "./packages/portable-vault" },
     { "path": "./packages/restart-pack-engine" },
     { "path": "./packages/audit-engine" },

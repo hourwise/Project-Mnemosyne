@@ -18,8 +18,10 @@
     "dev": "tsc --watch"
   },
   "dependencies": {
+    "@mnemosyne/adrasteia-adapter": "*",
     "@mnemosyne/almanac-store": "*",
     "@mnemosyne/audit-engine": "*",
+    "@mnemosyne/memory-boundary": "*",
     "@mnemosyne/reliability-engine": "*",
     "@mnemosyne/retrieval-engine": "*",
     "@mnemosyne/schema": "*",

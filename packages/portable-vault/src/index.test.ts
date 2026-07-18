@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ProjectRecord } from '@mnemosyne/schema';
+import { createTrustedOperationContext } from '@mnemosyne/adrasteia-adapter';
+import { PrincipalKind, ResourceScopeMode } from 'project-runtime-contracts';
 import { PortableVaultStore } from './index.js';
 
 const hash = 'sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
@@ -15,6 +17,16 @@ const manifest = {
   createdAt: timestamp,
   updatedAt: timestamp,
 };
+const context = createTrustedOperationContext({
+  execution: {
+    authenticatedPrincipal: { id: 'service_vault_test', kind: PrincipalKind.Service },
+    actingPrincipal: { id: 'agent_vault_test', kind: PrincipalKind.Agent },
+    runtimeId: 'mnemosyne', runtimeInstanceId: 'runtime_vault_test', sessionId: 'session_vault_test', projectId: 'project_mnemosyne',
+  },
+  scope: { mode: ResourceScopeMode.Bounded, projectId: 'project_mnemosyne' },
+  purpose: 'portable_vault_test',
+});
+const vaultOptions = { now: () => timestamp, runtimeScope: { projectId: 'project_mnemosyne', runtimeInstanceId: 'runtime_vault_test' } };
 
 function record(overrides: Record<string, unknown> = {}) {
   return ProjectRecord.parse({
@@ -58,10 +70,10 @@ describe('PortableVaultStore', () => {
   it('writes human-readable project-truth and task-state records to separate locations', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'mnemosyne-vault-'));
     try {
-      const store = new PortableVaultStore(directory, { now: () => timestamp });
-      await store.initialize(manifest);
-      await store.writeRecord(record());
-      await store.writeRecord(
+      const store = new PortableVaultStore(directory, vaultOptions);
+      await store.initialize(context, manifest);
+      await store.writeRecord(context, record());
+      await store.writeRecord(context,
         record({
           id: 'record_task_001',
           kind: 'task-state',
@@ -70,8 +82,8 @@ describe('PortableVaultStore', () => {
         }),
       );
 
-      expect(await store.listRecords({ scope: 'project_truth' })).toHaveLength(1);
-      expect(await store.listRecords({ scope: 'task_state' })).toHaveLength(1);
+      expect(await store.listRecords(context, { scope: 'project_truth' })).toHaveLength(1);
+      expect(await store.listRecords(context, { scope: 'task_state' })).toHaveLength(1);
       expect(JSON.parse(await readFile(join(directory, 'requirements', 'record_requirement_001.json'), 'utf8'))).toMatchObject({
         kind: 'requirement',
       });
@@ -87,16 +99,16 @@ describe('PortableVaultStore', () => {
     const sourceDirectory = await mkdtemp(join(tmpdir(), 'mnemosyne-vault-source-'));
     const targetDirectory = await mkdtemp(join(tmpdir(), 'mnemosyne-vault-target-'));
     try {
-      const sourceVault = new PortableVaultStore(sourceDirectory, { now: () => timestamp });
-      await sourceVault.initialize(manifest);
-      await sourceVault.writeRecord(record());
-      const bundle = await sourceVault.exportVault();
+      const sourceVault = new PortableVaultStore(sourceDirectory, vaultOptions);
+      await sourceVault.initialize(context, manifest);
+      await sourceVault.writeRecord(context, record());
+      const bundle = await sourceVault.exportVault(context);
 
-      const targetVault = new PortableVaultStore(targetDirectory, { now: () => timestamp });
-      const imported = await targetVault.importVault(bundle);
+      const targetVault = new PortableVaultStore(targetDirectory, vaultOptions);
+      const imported = await targetVault.importVault(context, bundle);
 
       expect(imported).toEqual(bundle);
-      expect((await targetVault.readRecord('record_requirement_001'))?.content).toContain('source evidence');
+      expect((await targetVault.readRecord(context, 'record_requirement_001'))?.content).toContain('source evidence');
     } finally {
       await rm(sourceDirectory, { recursive: true, force: true });
       await rm(targetDirectory, { recursive: true, force: true });
@@ -106,9 +118,9 @@ describe('PortableVaultStore', () => {
   it('rejects records for a different project', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'mnemosyne-vault-mismatch-'));
     try {
-      const store = new PortableVaultStore(directory, { now: () => timestamp });
-      await store.initialize(manifest);
-      await expect(store.writeRecord(record({ projectId: 'project_other' }))).rejects.toThrow('belongs to');
+      const store = new PortableVaultStore(directory, vaultOptions);
+      await store.initialize(context, manifest);
+      await expect(store.writeRecord(context, record({ projectId: 'project_other' }))).rejects.toThrow('MNEMOSYNE_SCOPE_MISMATCH');
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

@@ -10,8 +10,8 @@ Superseded
 
 ## Superseded By
 
-This decision is superseded by [ADR-XXXX: Mnemosyne Handling of Dual-Principal
-Context Without Memory-Derived Authority](ADR-XXXX-dual-principal-context-without-memory-authority.md).
+This decision is superseded by [ADR-0035: Project Adrasteia Stage-A Memory
+Boundary](ADR-0035-ADRASTEIA-STAGE-A-MEMORY-BOUNDARY.md).
 
 ## Context
 

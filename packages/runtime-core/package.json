@@ -18,9 +18,11 @@
     "dev": "tsc --watch"
   },
   "dependencies": {
+    "@mnemosyne/adrasteia-adapter": "*",
     "@mnemosyne/audit-engine": "*",
     "@mnemosyne/almanac-store": "*",
     "@mnemosyne/ananke-adapter": "*",
+    "@mnemosyne/memory-boundary": "*",
     "@mnemosyne/mcp-adapter": "*",
     "@mnemosyne/onboarding-engine": "*",
     "@mnemosyne/portable-vault": "*",

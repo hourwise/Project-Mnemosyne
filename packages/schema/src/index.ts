@@ -1,4 +1,11 @@
 import { z } from 'zod';
+import {
+  AgentExecutionContextSchema,
+  ApprovalReferenceSchema,
+  AuditReferenceSchema,
+  CorrelationContextSchema,
+  GrantReferenceSchema,
+} from 'project-runtime-contracts';
 
 export const ISODateTime = z.string().datetime({ offset: true });
 export const NonEmptyString = z.string().trim().min(1);
@@ -40,6 +47,10 @@ export type MemoryStatus = z.infer<typeof MemoryStatus>;
 
 export const Importance = z.enum(['low', 'medium', 'high', 'critical']);
 export type Importance = z.infer<typeof Importance>;
+
+/** Classification is Mnemosyne-owned; defaulting legacy records to internal is conservative. */
+export const AccessClassification = z.enum(['public', 'internal', 'sensitive', 'restricted']);
+export type AccessClassification = z.infer<typeof AccessClassification>;
 
 export const SourceType = z.enum([
   'law',
@@ -93,6 +104,20 @@ export const ProvenanceActor = z.object({
 export type ProvenanceActor = z.infer<typeof ProvenanceActor>;
 
 /**
+ * Portable attribution deliberately reuses canonical Adrasteia identities and
+ * references. It records evidence and causation, never a credential or grant.
+ */
+export const MnemosyneAttribution = z.object({
+  execution: AgentExecutionContextSchema,
+  correlation: CorrelationContextSchema,
+  purpose: NonEmptyString,
+  approvalReference: ApprovalReferenceSchema.optional(),
+  auditReference: AuditReferenceSchema.optional(),
+  grantReference: GrantReferenceSchema.optional(),
+});
+export type MnemosyneAttribution = z.infer<typeof MnemosyneAttribution>;
+
+/**
  * Provenance source kinds remain open so shared Runtime Contracts or supported
  * connectors can identify source classes without Mnemosyne duplicating them.
  */
@@ -116,6 +141,7 @@ export const ProvenanceSource = z.object({
   publisher: NonEmptyString.optional(),
   sourceVersion: NonEmptyString.optional(),
   trustDomain: NonEmptyString.optional(),
+  attribution: MnemosyneAttribution.optional(),
   metadata: z.record(z.unknown()).optional(),
 });
 export type ProvenanceSource = z.infer<typeof ProvenanceSource>;
@@ -134,6 +160,8 @@ export const MemoryRecord = z.object({
   supersedes: z.array(EntityId).default([]),
   supersededBy: EntityId.optional(),
   tags: z.array(NonEmptyString).default([]),
+  accessClassification: AccessClassification.default('internal'),
+  attribution: MnemosyneAttribution.optional(),
 }).superRefine((memory, ctx) => {
   if (memory.lastVerifiedAt && memory.lastVerifiedAt < memory.createdAt) {
     ctx.addIssue({
@@ -151,7 +179,10 @@ export const MemoryRecord = z.object({
     });
   }
 });
-export type MemoryRecord = z.infer<typeof MemoryRecord>;
+/** Legacy records may omit classification; parsing persists the conservative internal default. */
+export type MemoryRecord = Omit<z.output<typeof MemoryRecord>, 'accessClassification'> & {
+  accessClassification?: AccessClassification;
+};
 
 /** Record kinds stored in the portable, human-readable project vault. */
 export const ProjectRecordKind = z.enum([
@@ -171,9 +202,6 @@ export type ProjectRecordKind = z.infer<typeof ProjectRecordKind>;
 /** Prevents temporary work and advisory experience from silently becoming project truth. */
 export const ProjectRecordScope = z.enum(['project_truth', 'task_state', 'agent_performance']);
 export type ProjectRecordScope = z.infer<typeof ProjectRecordScope>;
-
-export const AccessClassification = z.enum(['public', 'internal', 'sensitive', 'restricted']);
-export type AccessClassification = z.infer<typeof AccessClassification>;
 
 export const ProjectRecordStatus = z.enum([
   'active',
@@ -205,6 +233,7 @@ export const ProjectRecord = z
     supersededBy: EntityId.optional(),
     contradicts: z.array(EntityId).default([]),
     accessClassification: AccessClassification.default('internal'),
+    attribution: MnemosyneAttribution.optional(),
     tags: z.array(NonEmptyString).default([]),
   })
   .superRefine((record, ctx) => {
@@ -294,6 +323,12 @@ export type ProjectVaultIndex = z.infer<typeof ProjectVaultIndex>;
 export const ProjectVaultExport = z.object({
   manifest: ProjectVaultManifest,
   records: z.array(ProjectRecord),
+  exclusions: z.object({
+    public: z.number().int().nonnegative(),
+    internal: z.number().int().nonnegative(),
+    sensitive: z.number().int().nonnegative(),
+    restricted: z.number().int().nonnegative(),
+  }).optional(),
 });
 export type ProjectVaultExport = z.infer<typeof ProjectVaultExport>;
 
@@ -396,6 +431,7 @@ export const AuditEventType = z.enum([
   'JOURNAL_APPENDED',
   'ANANKE_NOTIFICATION_SENT',
   'ANANKE_NOTIFICATION_FAILED',
+  'CREDENTIAL_MATERIAL_REJECTED',
   'PATH_ESCAPE_DENIED',
   'SESSION_STARTED',
   'SESSION_ENDED',

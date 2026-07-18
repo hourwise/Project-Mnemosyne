@@ -4,10 +4,10 @@ Project Mnemosyne is a governed memory and context runtime for AI agents.
 
 Mnemosyne maintains a local project memory called **The Almanac**. The Almanac stores distilled knowledge, source references, reliability scores, conflicts, session history, and project relationships. It does not replace source files; it creates a trusted index into them.
 
-Mnemosyne's next ingestion boundary is provenance-aware by design: covered
-content will require a valid Content Surface Preflight receipt plus an Ananke
-decision before it can influence persistent memory. Untrusted source text stays
-source evidence, never runtime instruction.
+Mnemosyne has adopted Project Adrasteia Stage-A for portable identity, scope,
+correlation, references, runtime inspection, compatibility and protocol
+negotiation. Shared content preflight and provenance admission remain deferred.
+Untrusted source text stays source evidence, never runtime instruction.
 
 ## Relationship To Ananke
 
@@ -46,11 +46,13 @@ Mnemosyne has working MVP implementations for its core governed-memory path:
 - Almanac storage with in-memory and SQLite implementations, audit persistence, and workspace protection.
 - Project onboarding, reliability scoring and revalidation, retrieval, decay, and structured conflict detection.
 - A governed, transport-neutral MCP tool surface. It exposes Almanac operations only and never raw filesystem access.
+- Trusted current operation context with separate authenticated and acting principals, bounded project scope, correlation, purpose and historical references that never become authority.
+- Classified memory and portable-output enforcement: restricted records are excluded by default; sensitive access needs a trusted local evaluator; high-confidence credential material is rejected before persistence.
 - Ananke safety notifications for conflicts, missing sources, low-reliability context, and insufficient context. Delivery outcomes are audited and cannot mutate Almanac memory.
 - A Quick validation testbench that checks runtime initialisation, SQLite persistence, and governed context retrieval, then emits JSON and optional CSV reports.
 - A portable-vault foundation with schema-versioned project metadata, human-readable `.mnemosyne/` records, strict project-truth/task-state/performance boundaries, and validated import/export.
 - A model-neutral Restart Pack generator with explicit task scope, source links, stale/low-reliability warnings, deterministic ordering, and token-budget awareness.
-- A provenance-source schema foundation for Milestone 11; admission gating, preflight validation, and inbound Ananke decisions are not implemented yet.
+- Adrasteia-valid identity, health, readiness, registration, compatibility and semantic protocol negotiation records; an optional, outbound-only Ananke advisory bridge.
 
 This is an MVP, not a production-hardened runtime. The detailed implementation
 status is maintained in the [roadmap](docs/ROADMAP.md).
@@ -64,10 +66,9 @@ The vault already provides human-readable project records, stable identifiers,
 schema versioning, source and evidence links, and import/export without tying
 project memory to a particular chat model or interface.
 
-In parallel, the next ingestion hardening step is provenance-aware content
-admission: bind memory claims to source hashes, preflight receipts, exposure and
-truncation state, and Ananke decisions so stale or hostile source material
-cannot silently become trusted memory.
+The next gated design phase is provenance-aware content admission. It is not
+implemented: there is no shared content-preflight receipt, full provenance
+admission engine, or inbound Ananke decision transport in this release.
 
 The vault will strictly separate long-lived project truth from temporary task
 state and advisory agent-performance memory. Restart packs will then provide
@@ -86,8 +87,8 @@ After that, planned work includes:
 - An end-to-end demo proving initialise, onboard, store and recall memory,
   build context, detect conflict, score reliability, apply decay, and audit.
 - Portable-vault migration, cross-agent import/export, and restart-pack tests.
-- Explicit conflict-resolution lifecycle, sensitive-record classification,
-  redaction, and optional encryption.
+- Explicit conflict-resolution lifecycle, encryption/key management, and a
+  pluggable—not complete—content-based DLP capability.
 - Advisory skill/model experience records and confirmed-only voice records for
   future Atlas and voice workflows.
 - User-approved, anonymised GitHub validation-report generation.
@@ -100,6 +101,8 @@ After that, planned work includes:
 | Package                           | Purpose                                                                 |
 | --------------------------------- | ----------------------------------------------------------------------- |
 | `@mnemosyne/schema`               | Shared types, schemas, constants, and result envelopes                  |
+| `@mnemosyne/adrasteia-adapter`    | Pure Project Adrasteia mapping, canonical validation, and inspection composition |
+| `@mnemosyne/memory-boundary`      | Mnemosyne-owned classification evaluator and credential-material guard  |
 | `@mnemosyne/portable-vault`       | Human-readable `.mnemosyne` project records and validated import/export |
 | `@mnemosyne/restart-pack-engine`  | Model-neutral, source-linked, token-budgeted task continuation packs    |
 | `@mnemosyne/audit-engine`         | Almanac audit event recording interfaces and in-memory store            |
@@ -140,6 +143,7 @@ portability behavior without weakening the governed boundary.
 - [Portable Vault Specification](docs/portable-vault-specification.md)
 - [Restart Pack Semantics](docs/restart-pack-semantics.md)
 - [Ananke Boundary](docs/integration/ananke-boundary.md)
+- [Adrasteia Stage-A Integration](docs/integration/adrasteia-stage-a.md)
 - [Decisions Index](docs/decisions/README.md)
 - [Laws of Mnemosyne](docs/LAWS_OF_MNEMOSYNE.md)
 - [Architecture](docs/ARCHITECTURE.md)
@@ -150,7 +154,7 @@ portability behavior without weakening the governed boundary.
 - [Validation and Compatibility](docs/VALIDATION_AND_COMPATIBILITY.md)
 - [Research Additions and Requirements](docs/PROJECT_MNEMOSYNE_RESEARCH_AND_REQUIREMENTS.md)
 - [ADR-0033: Frictionless Validation And Ecosystem Compatibility](docs/ADR-0033-FRICTIONLESS-VALIDATION-AND-ECOSYSTEM-COMPATIBILITY.md)
-- [ADR-XXXX: Dual-Principal Context Without Memory-Derived Authority](docs/ADR-XXXX-dual-principal-context-without-memory-authority.md)
+- [ADR-0035: Adrasteia Stage-A Memory Boundary](docs/ADR-0035-ADRASTEIA-STAGE-A-MEMORY-BOUNDARY.md)
 - [ADR-0034 (Superseded): Fates Dual-Principal And Compatibility Contract](docs/ADR-0034-ADOPTION-OF-THE-FATES-DUAL-PRINCIPAL-AND-COMPATIBILITY-CONTRACT.md)
 - [ADR-00XX: Provenance Admission Design Gate](docs/ADR-00XX-PROVENANCE-ADMISSION-DESIGN-GATE.md)
 - [ADR-XXXX: Provenance-Aware Content Ingestion](docs/ADR-XXXX-mnemosyne-provenance-aware-content-ingestion.md)
