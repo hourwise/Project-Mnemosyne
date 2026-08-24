@@ -1,10 +1,11 @@
+import { generateKeyPairSync } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { InMemoryAlmanacStore } from '@mnemosyne/almanac-store';
 import { InMemoryAuditStore } from '@mnemosyne/audit-engine';
 import { createTrustedOperationContext } from '@mnemosyne/adrasteia-adapter';
 import { PrincipalKind, ResourceScopeMode } from 'project-runtime-contracts';
 import type { ConflictRecord, MemoryRecord } from '@mnemosyne/schema';
-import { ProvenanceAdmissionEngine } from '@mnemosyne/memory-ingest-engine';
+import { ProvenanceAdmissionEngine, RuntimeContractsPreflightReceiptVerifier } from '@mnemosyne/memory-ingest-engine';
 import { McpAlmanacServer } from './index.js';
 
 const hash = 'sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
@@ -128,57 +129,133 @@ describe('McpAlmanacServer', () => {
     expect(server.callTool('almanac_read_memory', { id: 'mem_fact_404' }).isError).toBe(true);
   });
 
-  it('keeps writes staged until a verified preflight receipt is supplied', () => {
-    const store = new InMemoryAlmanacStore();
-    const audit = new InMemoryAuditStore();
-    const admission = new ProvenanceAdmissionEngine({ now: () => createdAt });
-    const server = new McpAlmanacServer({
-      store,
-      audit,
+  it('rejects missing, development, and dishonest strict verifier attestations while accepting a real configured verifier', () => {
+    const keys = generateKeyPairSync('ed25519');
+    const base = {
+      store: new InMemoryAlmanacStore(),
+      audit: new InMemoryAuditStore(),
       runtimeScope: { projectId: 'project_mnemosyne', runtimeInstanceId: 'runtime_mcp_test' },
-      now: () => createdAt,
-      governanceMode: 'strict',
+      governanceMode: 'strict' as const,
       admission: {
-        engine: admission,
+        engine: new ProvenanceAdmissionEngine({ now: () => createdAt }),
+        authority: { evaluate: () => ({ kind: 'allowed' as const }) },
+      },
+    };
+    expect(() => new McpAlmanacServer(base)).toThrow();
+    expect(() => new McpAlmanacServer({
+      ...base,
+      admission: { ...base.admission, preflight: new RuntimeContractsPreflightReceiptVerifier({ strict: false }) },
+    })).toThrow('STRICT_MNEMOSYNE_REQUIRES_AUTHENTICATED_VERIFIER_AND_TRUST_REGISTRY');
+    expect(() => new McpAlmanacServer({
+      ...base,
+      admission: {
+        ...base.admission,
         preflight: {
           securityMode: 'AUTHENTICATED' as const,
           trustRegistryConfigured: true,
           verify: () => ({
             kind: 'verified' as const,
-            receiptId: 'receipt_mcp_001', observationId: 'observation_mcp_001', decisionId: 'decision_mcp_001',
-            contractVersion: '1.0.0', ruleSetVersion: 'rules-2026-08', outcome: 'PASS' as const,
-            exposureLevel: 'SELECTED_CONTENT' as const, sourceContentHash: hash, emittedSurfaceHash: hash, truncated: false,
+            receiptId: 'dishonest', observationId: 'dishonest', decisionId: 'dishonest',
+            contractVersion: '1.1.0', ruleSetVersion: 'dishonest', outcome: 'PASS' as const,
+            exposureLevel: 'SELECTED_CONTENT' as const, sourceContentHash: hash, truncated: false,
           }),
         },
-        authority: { evaluate: () => ({ kind: 'allowed' as const, decisionId: 'authority_mcp_001', policyVersion: 'authority-test-v1' }) },
       },
+    })).toThrow('STRICT_MNEMOSYNE_REQUIRES_AUTHENTICATED_VERIFIER_AND_TRUST_REGISTRY');
+    expect(() => new McpAlmanacServer({
+      ...base,
+      admission: {
+        ...base.admission,
+        preflight: new RuntimeContractsPreflightReceiptVerifier({
+          trustedIssuers: [{ keyId: 'test-key', publicKey: keys.publicKey, issuerRuntime: 'ananke' }],
+        }),
+      },
+    })).not.toThrow();
+  });
+
+  it('fails closed for strict revalidation without a governed authority decision', () => {
+    const { server, context, store } = strictRevalidationServer({ evaluate: () => ({ kind: 'allowed' as const }) });
+    store.createMemory(memory());
+    const result = server.callTool('almanac_revalidate', { memoryId: memory().id, supersededBy: 'memory-attacker-controlled' }, context);
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toBe('ADMISSION_AUTHORITY_REQUIRED');
+    expect(store.search({})[0]?.supersedes).toEqual([]);
+  });
+
+  it('does not mutate on revalidation authority denial and mutates only after explicit approval', () => {
+    const denied = strictRevalidationServer({
+      evaluate: () => ({ kind: 'allowed' as const }),
+      evaluateRevalidation: () => ({ kind: 'denied' as const, reasonCode: 'REVALIDATION_NOT_APPROVED' }),
     });
-    const context = createTrustedOperationContext({
+    denied.store.createMemory(memory());
+    const deniedResult = denied.server.callTool('almanac_revalidate', { memoryId: memory().id, supersededBy: 'memory-denied' }, denied.context);
+    expect(deniedResult.isError).toBe(true);
+    expect(denied.resultMemory().supersedes).toEqual([]);
+
+    const allowed = strictRevalidationServer({
+      evaluate: () => ({ kind: 'allowed' as const }),
+      evaluateRevalidation: () => ({ kind: 'allowed' as const, decisionId: 'revalidation-approved' }),
+    });
+    allowed.store.createMemory(memory());
+    const allowedResult = allowed.server.callTool('almanac_revalidate', { memoryId: memory().id, currentSourceHash: replacementHash, sourceAvailable: true }, allowed.context);
+    expect(allowedResult.isError).toBeUndefined();
+    expect(parsed(allowedResult)).toMatchObject({ status: 'stale' });
+    expect((parsed(allowedResult) as { reasons: string[] }).reasons).toContain('SOURCE_HASH_CHANGED');
+  });
+
+  it('does not wildcard strict tenant/workspace context and keeps strict reads available with a complete scope', () => {
+    const strict = strictRevalidationServer({ evaluate: () => ({ kind: 'allowed' as const }), evaluateRevalidation: () => ({ kind: 'allowed' as const }) });
+    strict.store.createMemory(memory());
+    const incompleteContext = createTrustedOperationContext({
       execution: {
         authenticatedPrincipal: { id: 'service_mcp_test', kind: PrincipalKind.Service },
         actingPrincipal: { id: 'agent_mcp_test', kind: PrincipalKind.Agent },
-        runtimeId: 'mnemosyne', runtimeInstanceId: 'runtime_mcp_test', sessionId: 'session_mcp_test', projectId: 'project_mnemosyne',
+        runtimeId: 'mnemosyne', runtimeInstanceId: 'runtime_mcp_strict', sessionId: 'session_mcp_strict', projectId: 'project_mnemosyne',
       },
       scope: { mode: ResourceScopeMode.Bounded, projectId: 'project_mnemosyne' },
-      purpose: 'mcp_admission_test',
-      correlation: { requestId: 'request_admission_001', correlationId: 'correlation_admission_001' },
+      purpose: 'strict-read',
     });
-
-    const missing = server.callTool('almanac_write_memory', { memory: memory(), idempotencyKey: 'write_001' }, context);
-    expect(missing.isError).toBe(true);
-    expect(missing.content[0]?.text).toBe('PREFLIGHT_REQUIRED');
-    expect(store.search({})).toHaveLength(0);
-
-    const admitted = server.callTool('almanac_write_memory', {
-      memory: memory({ statement: 'caller supplied statement must be ignored' }),
-      idempotencyKey: 'write_002',
-      preflightReceipt: { opaque: true },
-      preflightSurface: memory().statement,
-    }, context);
-    expect(parsed(admitted)).toMatchObject({ id: 'mem_fact_001', admission: { state: 'ADMITTED' } });
-    expect(audit.list().map((event) => event.eventType)).toContain('MEMORY_ADMITTED');
+    expect(strict.server.callTool('almanac_read_memory', { id: memory().id }, incompleteContext).isError).toBe(true);
+    expect(strict.server.callTool('almanac_read_memory', { id: memory().id }, strict.context).isError).toBeUndefined();
   });
 });
+
+function strictRevalidationServer(authority: Parameters<typeof createStrictAuthority>[0]) {
+  const store = new InMemoryAlmanacStore();
+  const audit = new InMemoryAuditStore();
+  const keys = generateKeyPairSync('ed25519');
+  const server = new McpAlmanacServer({
+    store,
+    audit,
+    runtimeScope: { projectId: 'project_mnemosyne', tenantId: 'tenant_mnemosyne', workspaceId: 'workspace_mnemosyne', runtimeInstanceId: 'runtime_mcp_strict' },
+    governanceMode: 'strict',
+    admission: {
+      engine: new ProvenanceAdmissionEngine({ now: () => createdAt }),
+      preflight: new RuntimeContractsPreflightReceiptVerifier({ trustedIssuers: [{ keyId: 'test-key', publicKey: keys.publicKey, issuerRuntime: 'ananke' }] }),
+      authority: createStrictAuthority(authority),
+    },
+    accessEvaluator: { allows: () => true, assertAllowed: () => undefined, filter: (_context: unknown, _operation: unknown, records: unknown[]) => ({ records, excluded: { public: 0, internal: 0, sensitive: 0, restricted: 0 } }) } as never,
+  });
+  const context = createTrustedOperationContext({
+    execution: {
+      authenticatedPrincipal: { id: 'service_mcp_test', kind: PrincipalKind.Service },
+      actingPrincipal: { id: 'agent_mcp_test', kind: PrincipalKind.Agent },
+      runtimeId: 'mnemosyne', runtimeInstanceId: 'runtime_mcp_strict', sessionId: 'session_mcp_strict', projectId: 'project_mnemosyne', tenantId: 'tenant_mnemosyne', workspaceId: 'workspace_mnemosyne',
+    },
+    scope: { mode: ResourceScopeMode.Bounded, projectId: 'project_mnemosyne', tenantId: 'tenant_mnemosyne', workspaceId: 'workspace_mnemosyne' },
+    purpose: 'persistent memory admission',
+    correlation: { requestId: 'request-strict-001', correlationId: 'correlation-strict-001' },
+  });
+  return { server, context, store, resultMemory: () => store.search({})[0]! };
+}
+
+function createStrictAuthority(authority: { evaluate: () => { kind: 'allowed' }; evaluateRevalidation?: () => { kind: 'allowed' | 'denied'; reasonCode?: string } }) {
+  return {
+    evaluate: authority.evaluate,
+    evaluateRevalidation: authority.evaluateRevalidation,
+  };
+}
 
 function createServer(sourceTextByPath?: Record<string, string>, reported: ConflictRecord[] = []) {
   const store = new InMemoryAlmanacStore();

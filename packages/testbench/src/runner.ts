@@ -42,7 +42,7 @@ export async function runQuickValidation(
       const trustedContext = localContext(runtime, 'project_testbench');
       const server = runtime.createMcpServer({
         'docs/ALMANAC_MODEL.md': 'The Almanac stores governed project memory.',
-      });
+      }, 'development');
       const write = server.callTool('almanac_write_memory', { memory: validationMemory() }, trustedContext);
       if (write.isError) throw new Error(write.content[0]?.text ?? 'Memory write failed.');
       const result = server.callTool('almanac_get_context_pack', { task: 'governed project memory' }, trustedContext);

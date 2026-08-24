@@ -13,6 +13,8 @@ import {
 import type { MemoryRecord as MemoryRecordModel } from '@mnemosyne/schema';
 import type { PreflightReceiptVerifier, PreflightVerification } from './admission.js';
 
+const AUTHENTICATED_VERIFIER_BRAND = Symbol('mnemosyne.authenticated-preflight-verifier');
+
 export interface TrustedReceiptIssuer {
   keyId: string;
   publicKey: KeyObject | string | Buffer;
@@ -40,12 +42,13 @@ export interface RuntimeContractsPreflightReceiptVerifierOptions {
   requireSignature?: boolean;
   expectedAudienceRuntime?: string;
   trustedIssuers?: ReadonlyMap<string, TrustedReceiptIssuer> | readonly TrustedReceiptIssuer[];
+  /** Strict runtimes use an explicit tenant/workspace trust scope, never a wildcard omission. */
+  requireTenantWorkspace?: boolean;
 }
 
 /** Production verifier for authenticated Runtime Contracts receipts. */
 export class RuntimeContractsPreflightReceiptVerifier implements PreflightReceiptVerifier {
-  readonly securityMode = 'AUTHENTICATED' as const;
-  readonly trustRegistryConfigured = true as const;
+  private readonly [AUTHENTICATED_VERIFIER_BRAND] = true;
   private readonly strict: boolean;
   private readonly contractVersion: string;
   private readonly maxAgeMs: number | undefined;
@@ -53,6 +56,10 @@ export class RuntimeContractsPreflightReceiptVerifier implements PreflightReceip
   private readonly now: () => string;
   private readonly expectedAudienceRuntime: string;
   private readonly trustedIssuers: ReadonlyMap<string, TrustedReceiptIssuer>;
+  private readonly requireTenantWorkspace: boolean;
+
+  get securityMode(): 'AUTHENTICATED' | 'LEGACY' { return this.strict ? 'AUTHENTICATED' : 'LEGACY'; }
+  get trustRegistryConfigured(): boolean { return this.trustedIssuers.size > 0; }
 
   constructor(options: RuntimeContractsPreflightReceiptVerifierOptions = {}) {
     this.strict = options.strict ?? true;
@@ -62,6 +69,7 @@ export class RuntimeContractsPreflightReceiptVerifier implements PreflightReceip
     this.now = options.now ?? (() => new Date().toISOString());
     this.expectedAudienceRuntime = options.expectedAudienceRuntime ?? 'mnemosyne';
     this.trustedIssuers = normalizeIssuers(options.trustedIssuers);
+    this.requireTenantWorkspace = options.requireTenantWorkspace ?? this.strict;
     if (this.maxAgeMs !== undefined && (!Number.isInteger(this.maxAgeMs) || this.maxAgeMs < 0)) {
       throw new TypeError('maxAgeMs must be a non-negative integer');
     }
@@ -107,7 +115,7 @@ export class RuntimeContractsPreflightReceiptVerifier implements PreflightReceip
     if (now >= expiresAt) return { kind: 'unsupported', reasonCode: 'PREFLIGHT_RECEIPT_EXPIRED' };
     if (expiresAt <= issuedAt || expiresAt - issuedAt > this.maxLifetimeMs) return { kind: 'unsupported', reasonCode: 'PREFLIGHT_RECEIPT_LIFETIME_INVALID' };
 
-    if (!input.expectedContext || !contextMatches(receipt, input.expectedContext)) return { kind: 'unsupported', reasonCode: 'PREFLIGHT_CONTEXT_MISMATCH' };
+    if (!input.expectedContext || !contextMatches(receipt, input.expectedContext, this.requireTenantWorkspace)) return { kind: 'unsupported', reasonCode: 'PREFLIGHT_CONTEXT_MISMATCH' };
     if (receipt.observation.source.canonicalPath && receipt.observation.source.canonicalPath !== input.candidate.source.path) return { kind: 'unsupported', reasonCode: 'PREFLIGHT_SOURCE_PATH_MISMATCH' };
     if (!hashesEqual(receipt.observation.source.contentHash, input.candidate.source.contentHash)) return { kind: 'unsupported', reasonCode: 'PREFLIGHT_SOURCE_HASH_MISMATCH' };
     if (receipt.emittedSurfaceHash === undefined || input.preflightSurface === undefined) return { kind: 'unsupported', reasonCode: 'PREFLIGHT_SURFACE_REQUIRED' };
@@ -134,6 +142,18 @@ export class RuntimeContractsPreflightReceiptVerifier implements PreflightReceip
     if (receipt.observation.source.canonicalPath && receipt.observation.source.canonicalPath !== input.candidate.source.path) return { kind: 'unsupported', reasonCode: 'PREFLIGHT_SOURCE_PATH_MISMATCH' };
     return normalized(receipt);
   }
+}
+
+/**
+ * Strict server construction accepts only this module's genuinely configured
+ * verifier. Structural properties such as `securityMode` are diagnostics,
+ * not authority, because an arbitrary object can self-report them.
+ */
+export function isStrictAuthenticatedPreflightVerifier(value: unknown): value is RuntimeContractsPreflightReceiptVerifier {
+  if (!(value instanceof RuntimeContractsPreflightReceiptVerifier)) return false;
+  const verifier = value as RuntimeContractsPreflightReceiptVerifier;
+  const branded = (value as unknown as Record<PropertyKey, unknown>)[AUTHENTICATED_VERIFIER_BRAND] === true;
+  return branded && verifier.securityMode === 'AUTHENTICATED' && verifier.trustRegistryConfigured;
 }
 
 export function deriveExactSurfaceStatement(surface: unknown): string {
@@ -163,7 +183,12 @@ function normalized(receipt: AuthenticatedContentPreflightReceipt | ContentPrefl
     truncated: receipt.truncated,
     audienceRuntime: 'audience' in receipt ? receipt.audience.runtime : undefined,
     projectId: 'context' in receipt ? receipt.context.projectId : undefined,
+    tenantId: 'context' in receipt ? receipt.context.tenantId : undefined,
+    workspaceId: 'context' in receipt ? receipt.context.workspaceId : undefined,
     purpose: 'context' in receipt ? receipt.context.purpose : undefined,
+    requestId: 'context' in receipt ? receipt.context.requestId : undefined,
+    correlationId: 'context' in receipt ? receipt.context.correlationId : undefined,
+    expiresAt: 'expiresAt' in receipt ? receipt.expiresAt : undefined,
   };
 }
 
@@ -182,18 +207,21 @@ function normalizeIssuers(issuers: RuntimeContractsPreflightReceiptVerifierOptio
   return new Map((issuers ?? []).map((issuer: TrustedReceiptIssuer) => [issuer.keyId, issuer]));
 }
 
-function contextMatches(receipt: AuthenticatedContentPreflightReceipt, expected: ReceiptExpectedContext): boolean {
+function contextMatches(receipt: AuthenticatedContentPreflightReceipt, expected: ReceiptExpectedContext, requireTenantWorkspace: boolean): boolean {
   const context = receipt.context;
   return context.projectId === expected.projectId
-    && optionalEqual(context.tenantId, expected.tenantId)
-    && optionalEqual(context.workspaceId, expected.workspaceId)
-    && optionalEqual(context.purpose, expected.purpose)
+    && (!requireTenantWorkspace || (!!expected.tenantId && !!expected.workspaceId && !!context.tenantId && !!context.workspaceId))
+    && exactOrOptional(context.tenantId, expected.tenantId, requireTenantWorkspace)
+    && exactOrOptional(context.workspaceId, expected.workspaceId, requireTenantWorkspace)
+    && exactOrOptional(context.purpose, expected.purpose, requireTenantWorkspace)
     && (!expected.destinationRuntime || context.destination.runtime === expected.destinationRuntime)
-    && optionalEqual(context.requestId, expected.requestId)
-    && optionalEqual(context.correlationId, expected.correlationId);
+    && exactOrOptional(context.requestId, expected.requestId, false)
+    && exactOrOptional(context.correlationId, expected.correlationId, false);
 }
 
-function optionalEqual(actual: string | undefined, expected: string | undefined): boolean { return expected === undefined || actual === expected; }
+function exactOrOptional(actual: string | undefined, expected: string | undefined, required: boolean): boolean {
+  return required ? actual === expected : expected === undefined || actual === expected;
+}
 function hashesEqual(left: string, right: string): boolean { return left.replace(/^sha256:/, '') === right.replace(/^sha256:/, ''); }
 
 function receiptDigest(receipt: AuthenticatedContentPreflightReceipt | ContentPreflightReceipt): string {

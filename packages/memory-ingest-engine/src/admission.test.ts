@@ -131,4 +131,46 @@ describe('ProvenanceAdmissionEngine', () => {
     expect(replay.admission.reasonCodes).toEqual(['PREFLIGHT_RECEIPT_REPLAYED']);
     expect(replay.memory).toBeUndefined();
   });
+
+  it('sweeps expired replay entries and refuses new entries when the bounded ledger is full', () => {
+    let now = '2026-08-24T12:00:00.000Z';
+    const engine = new ProvenanceAdmissionEngine({ now: () => now, maxConsumedReceipts: 2 });
+    const allowed = { evaluate: () => ({ kind: 'allowed' as const }) };
+    const receiptVerifier = (id: string): PreflightReceiptVerifier => ({ verify: () => ({
+      kind: 'verified' as const, receiptId: id, receiptDigest: id, observationId: id, decisionId: id,
+      contractVersion: '1.0.0', ruleSetVersion: 'rules-2026-08', outcome: 'PASS' as const,
+      exposureLevel: 'SELECTED_CONTENT' as const, sourceContentHash: sourceHash, truncated: false,
+      expiresAt: id === 'receipt-4' ? '2026-08-24T12:10:00.000Z' : '2026-08-24T12:05:00.000Z',
+    }) });
+
+    expect(engine.admit({ ...candidate, id: 'mem_fact_bounded_001' }, request({ idempotencyKey: 'bounded-1', receipt: {}, preflight: receiptVerifier('receipt-1'), authority: allowed })).admission.state).toBe('ADMITTED');
+    expect(engine.admit({ ...candidate, id: 'mem_fact_bounded_002' }, request({ idempotencyKey: 'bounded-2', receipt: {}, preflight: receiptVerifier('receipt-2'), authority: allowed })).admission.state).toBe('ADMITTED');
+    const full = engine.admit({ ...candidate, id: 'mem_fact_bounded_003' }, request({ idempotencyKey: 'bounded-3', receipt: {}, preflight: receiptVerifier('receipt-3'), authority: allowed }));
+    expect(full.admission.state).toBe('DEFERRED');
+    expect(full.admission.reasonCodes).toEqual(['PREFLIGHT_REPLAY_LEDGER_FULL']);
+    expect(engine.replayLedgerSize).toBe(2);
+
+    now = '2026-08-24T12:06:00.000Z';
+    const afterExpiry = engine.admit({ ...candidate, id: 'mem_fact_bounded_004' }, request({ idempotencyKey: 'bounded-4', receipt: {}, preflight: receiptVerifier('receipt-4'), authority: allowed }));
+    expect(afterExpiry.admission.state).toBe('ADMITTED');
+    expect(engine.replayLedgerSize).toBe(1);
+  });
+
+  it('rejects a still-valid consumed receipt before its expiry', () => {
+    let now = '2026-08-24T12:00:00.000Z';
+    const engine = new ProvenanceAdmissionEngine({ now: () => now });
+    const allowed = { evaluate: () => ({ kind: 'allowed' as const }) };
+    const receiptVerifier: PreflightReceiptVerifier = { verify: () => ({
+      kind: 'verified' as const, receiptId: 'receipt-valid-replay', receiptDigest: 'receipt-valid-replay', observationId: 'observation', decisionId: 'decision',
+      contractVersion: '1.0.0', ruleSetVersion: 'rules-2026-08', outcome: 'PASS' as const,
+      exposureLevel: 'SELECTED_CONTENT' as const, sourceContentHash: sourceHash, truncated: false,
+      expiresAt: '2026-08-24T12:05:00.000Z',
+    }) };
+    const first = engine.admit(candidate, request({ idempotencyKey: 'valid-replay-1', receipt: {}, preflight: receiptVerifier, authority: allowed }));
+    now = '2026-08-24T12:04:00.000Z';
+    const replay = engine.admit({ ...candidate, id: 'mem_fact_replay_target' }, request({ idempotencyKey: 'valid-replay-2', receipt: {}, preflight: receiptVerifier, authority: allowed }));
+    expect(first.admission.state).toBe('ADMITTED');
+    expect(replay.admission.state).toBe('REJECTED');
+    expect(replay.admission.reasonCodes).toEqual(['PREFLIGHT_RECEIPT_REPLAYED']);
+  });
 });

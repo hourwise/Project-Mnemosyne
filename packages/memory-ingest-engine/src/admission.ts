@@ -30,7 +30,12 @@ export type PreflightVerification =
       truncated: boolean;
       audienceRuntime?: string;
       projectId?: string;
+      tenantId?: string;
+      workspaceId?: string;
       purpose?: string;
+      requestId?: string;
+      correlationId?: string;
+      expiresAt?: string;
     }
   | { kind: 'unavailable'; reasonCode: string }
   | { kind: 'unsupported'; reasonCode: string };
@@ -71,6 +76,20 @@ export interface AdmissionAuthority {
     projectId: string;
     trustDomain: string;
   }): AuthorityVerification;
+  /** Strict revalidation must be explicitly governed; it is not a write bypass. */
+  evaluateRevalidation?(input: {
+    memory: MemoryRecordModel;
+    projectId: string;
+    tenantId?: string;
+    workspaceId?: string;
+    purpose: string;
+    requestId: string;
+    correlationId: string;
+    supersededBy?: string;
+    currentSourceHash?: string;
+    sourceAvailable?: boolean;
+    contradictions?: number;
+  }): AuthorityVerification;
 }
 
 export interface AdmissionRequest {
@@ -82,6 +101,10 @@ export interface AdmissionRequest {
   projectId: string;
   vaultId?: string;
   trustDomain: string;
+  tenantId?: string;
+  workspaceId?: string;
+  requestId?: string;
+  purpose?: string;
   actor: ProvenanceActor;
   receipt?: unknown;
   preflightSurface?: unknown;
@@ -215,6 +238,13 @@ export interface ProvenanceAdmissionEngineOptions {
   now?: () => string;
   history?: InMemoryAdmissionHistoryStore;
   ingest?: MemoryIngestEngine;
+  maxConsumedReceipts?: number;
+  replayEntryTtlMs?: number;
+}
+
+interface ConsumedReceiptEntry {
+  candidateContentHash: string;
+  expiresAtMs: number;
 }
 
 /** Receipt-gated persistence admission with deterministic identity and retry semantics. */
@@ -222,13 +252,24 @@ export class ProvenanceAdmissionEngine {
   readonly history: InMemoryAdmissionHistoryStore;
   private readonly now: () => string;
   private readonly ingestEngine: MemoryIngestEngine;
-  /** In-memory replay ledger; a durable deployment must replace this with a durable store. */
-  private readonly consumedReceipts = new Map<string, string>();
+  /** Bounded single-process replay ledger; durable multi-process replay is not claimed. */
+  private readonly consumedReceipts = new Map<string, ConsumedReceiptEntry>();
+  private readonly maxConsumedReceipts: number;
+  private readonly replayEntryTtlMs: number;
 
   constructor(options: ProvenanceAdmissionEngineOptions = {}) {
     this.now = options.now ?? (() => new Date().toISOString());
     this.history = options.history ?? new InMemoryAdmissionHistoryStore({ now: this.now });
     this.ingestEngine = options.ingest ?? new MemoryIngestEngine({ now: this.now });
+    this.maxConsumedReceipts = options.maxConsumedReceipts ?? 4096;
+    this.replayEntryTtlMs = options.replayEntryTtlMs ?? 5 * 60 * 1000;
+    if (!Number.isSafeInteger(this.maxConsumedReceipts) || this.maxConsumedReceipts <= 0) throw new TypeError('maxConsumedReceipts must be a positive safe integer');
+    if (!Number.isSafeInteger(this.replayEntryTtlMs) || this.replayEntryTtlMs <= 0) throw new TypeError('replayEntryTtlMs must be a positive safe integer');
+  }
+
+  get replayLedgerSize(): number {
+    this.pruneConsumedReceipts();
+    return this.consumedReceipts.size;
   }
 
   admit(candidate: CandidateMemory, request: AdmissionRequest): AdmissionResult {
@@ -275,7 +316,7 @@ export class ProvenanceAdmissionEngine {
     };
 
     const preflight = request.preflight && request.receipt !== undefined
-      ? request.preflight.verify({ receipt: request.receipt, candidate: memory, candidateContentHash: identity.candidateContentHash, canonicalizationVersion: CANDIDATE_CANONICALIZATION_VERSION, preflightSurface: request.preflightSurface, expectedContext: request.expectedContext ?? { projectId: request.projectId, tenantId: request.trustDomain, workspaceId: request.vaultId, requestId: request.correlationId, correlationId: request.correlationId } })
+      ? request.preflight.verify({ receipt: request.receipt, candidate: memory, candidateContentHash: identity.candidateContentHash, canonicalizationVersion: CANDIDATE_CANONICALIZATION_VERSION, preflightSurface: request.preflightSurface, expectedContext: request.expectedContext ?? { projectId: request.projectId, tenantId: request.tenantId, workspaceId: request.workspaceId, purpose: request.purpose, requestId: request.requestId, correlationId: request.correlationId } })
       : { kind: 'unavailable' as const, reasonCode: 'PREFLIGHT_REQUIRED' };
 
     let state: AdmissionState = 'DEFERRED';
@@ -309,17 +350,25 @@ export class ProvenanceAdmissionEngine {
         policyProfileId: preflight.policyProfileId,
       };
       const replayKey = `${request.projectId}\u0000${request.trustDomain}\u0000${preflight.audienceRuntime ?? 'mnemosyne'}\u0000${preflight.receiptDigest ?? preflight.receiptId}`;
-      if (this.consumedReceipts.has(replayKey)) {
+      this.pruneConsumedReceipts();
+      const consumed = this.consumedReceipts.get(replayKey);
+      const ledgerFull = !consumed && this.consumedReceipts.size >= this.maxConsumedReceipts;
+      if (consumed) {
         state = 'REJECTED';
         reasonCodes = ['PREFLIGHT_RECEIPT_REPLAYED'];
+      } else if (ledgerFull) {
+        state = 'DEFERRED';
+        reasonCodes = ['PREFLIGHT_REPLAY_LEDGER_FULL'];
       }
-      const authority = state === 'REJECTED'
+      const authority = consumed
         ? { kind: 'denied' as const, reasonCode: 'PREFLIGHT_RECEIPT_REPLAYED' }
+        : ledgerFull
+          ? { kind: 'deferred' as const, reasonCode: 'PREFLIGHT_REPLAY_LEDGER_FULL' }
         : request.authority
           ? request.authority.evaluate({ candidate: memory, candidateContentHash: identity.candidateContentHash, preflight, projectId: request.projectId, trustDomain: request.trustDomain })
           : { kind: 'deferred' as const, reasonCode: 'ADMISSION_AUTHORITY_REQUIRED' };
       authorityReference = { decisionId: authority.decisionId, policyVersion: authority.policyVersion, outcome: authority.kind };
-      if (state === 'REJECTED') {
+      if (consumed || ledgerFull) {
         // The receipt cannot be used again, even for the same content under a
         // different idempotency key. Same-request retries return above from
         // the idempotency index before reaching this ledger.
@@ -336,7 +385,10 @@ export class ProvenanceAdmissionEngine {
         state = 'ADMITTED';
         reasonCodes = preflight.outcome === 'PASS_WITH_FLAGS' ? ['PREFLIGHT_PASS_WITH_FLAGS'] : ['PREFLIGHT_PASS'];
         finalMemory = MemoryRecord.parse({ ...memory, admission: { ...base, state, reasonCodes, preflight: preflightReference, authority: authorityReference, occurredAt: this.now() } });
-        this.consumedReceipts.set(replayKey, identity.candidateContentHash);
+        this.consumedReceipts.set(replayKey, {
+          candidateContentHash: identity.candidateContentHash,
+          expiresAtMs: this.replayExpiry(preflight.expiresAt),
+        });
       }
     }
 
@@ -351,6 +403,18 @@ export class ProvenanceAdmissionEngine {
     }
     this.history.append(this.auditEvent(candidate, request, identity, admission, previousState, revalidationOf));
     return result;
+  }
+
+  private replayExpiry(expiresAt: string | undefined): number {
+    const parsed = expiresAt ? Date.parse(expiresAt) : Number.NaN;
+    return Number.isFinite(parsed) ? parsed : Date.parse(this.now()) + this.replayEntryTtlMs;
+  }
+
+  private pruneConsumedReceipts(): void {
+    const now = Date.parse(this.now());
+    for (const [key, entry] of this.consumedReceipts) {
+      if (entry.expiresAtMs <= now) this.consumedReceipts.delete(key);
+    }
   }
 
   private auditEvent(candidate: CandidateMemory, request: AdmissionRequest, identity: CandidateIdentity, admission: MemoryAdmission, previousState?: AdmissionState, revalidationOf?: string): ProvenanceAdmissionEvent {

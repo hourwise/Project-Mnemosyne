@@ -33,7 +33,7 @@ describe('classified memory and credential boundaries', () => {
   it('excludes restricted Almanac memory before retrieval and context rendering', () => {
     const { runtime, context, store } = runtimeWithContext();
     store.createMemory(MemoryRecord.parse({ ...memory(), accessClassification: 'restricted', attribution: attributionFromContext(context) }));
-    const server = runtime.createMcpServer({ 'docs/BOUNDARY.md': 'restricted source text' });
+    const server = runtime.createMcpServer({ 'docs/BOUNDARY.md': 'restricted source text' }, 'development');
     expect(server.callTool('almanac_search', {}, context).content[0]?.text).toContain('"restricted":1');
     const pack = server.callTool('almanac_get_context_pack', { task: 'boundary' }, context).content[0]?.text ?? '';
     expect(pack).not.toContain('Boundary test memory.');
@@ -42,7 +42,7 @@ describe('classified memory and credential boundaries', () => {
 
   it('rejects credential material before Almanac persistence and audits only categories', () => {
     const { runtime, context, store } = runtimeWithContext();
-    const result = runtime.createMcpServer().callTool('almanac_write_memory', { memory: memory({ statement: 'Authorization: Bearer verylongcredentialmaterialvalue' }) }, context);
+    const result = runtime.createMcpServer({}, 'development').callTool('almanac_write_memory', { memory: memory({ statement: 'Authorization: Bearer verylongcredentialmaterialvalue' }) }, context);
     expect(result.isError).toBe(true);
     expect(store.search({ text: 'credentialmaterialvalue' })).toHaveLength(0);
     const audit = runtime.audit.list().find((event) => event.eventType === 'CREDENTIAL_MATERIAL_REJECTED');

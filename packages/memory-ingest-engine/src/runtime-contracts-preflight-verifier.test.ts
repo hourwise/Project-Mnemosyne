@@ -8,7 +8,7 @@ import {
   canonicalizeContentPreflightReceiptBody,
   canonicalizeContentSurface,
 } from 'project-runtime-contracts';
-import { RuntimeContractsPreflightReceiptVerifier } from './runtime-contracts-preflight-verifier.js';
+import { isStrictAuthenticatedPreflightVerifier, RuntimeContractsPreflightReceiptVerifier } from './runtime-contracts-preflight-verifier.js';
 
 const sourceHash = 'a'.repeat(64);
 const surface = 'SAFE CONTENT';
@@ -90,6 +90,14 @@ describe('RuntimeContractsPreflightReceiptVerifier', () => {
     projectId: 'project-a', tenantId: 'tenant-a', workspaceId: 'workspace-a', purpose: 'persistent memory admission', destinationRuntime: 'mnemosyne', requestId: 'request-safe-001', correlationId: 'correlation-safe-001',
   };
 
+  it('derives strict status from actual configuration rather than fixed self-attested constants', () => {
+    const development = new RuntimeContractsPreflightReceiptVerifier({ strict: false });
+    expect(development.securityMode).toBe('LEGACY');
+    expect(development.trustRegistryConfigured).toBe(false);
+    expect(isStrictAuthenticatedPreflightVerifier(development)).toBe(false);
+    expect(isStrictAuthenticatedPreflightVerifier(verifier())).toBe(true);
+  });
+
   it('accepts a valid Ed25519 receipt only when the exact surface and context match', () => {
     const receipt = makeReceipt(keys.privateKey);
     expect(verifier().verify({ receipt, candidate, candidateContentHash: 'candidate', canonicalizationVersion: 'mnemosyne-exact-surface-v1', preflightSurface: surface, expectedContext })).toMatchObject({ kind: 'verified', receiptId: 'receipt_safe_001' });
@@ -122,12 +130,16 @@ describe('RuntimeContractsPreflightReceiptVerifier', () => {
     const expired = makeReceipt(keys.privateKey, { expiresAt: '2026-08-24T12:00:30.000Z' });
     const future = makeReceipt(keys.privateKey, { issuedAt: '2026-08-24T12:02:00.000Z' });
     const crossProject = makeReceipt(keys.privateKey, { context: { projectId: 'project-b', tenantId: 'tenant-a', workspaceId: 'workspace-a', purpose: 'persistent memory admission', destination: { runtime: 'mnemosyne' }, requestId: 'request-safe-001', correlationId: 'correlation-safe-001' } });
+    const receipt = makeReceipt(keys.privateKey);
     const differentCandidate = { ...candidate, statement: 'MALICIOUS DIFFERENT CONTENT' };
     const args = (receipt: unknown, extra = {}) => ({ receipt, candidate: extra === differentCandidate ? differentCandidate : candidate, candidateContentHash: 'candidate', canonicalizationVersion: 'mnemosyne-exact-surface-v1', preflightSurface: surface, expectedContext });
     expect(verifier().verify(args(expired)).reasonCode).toBe('PREFLIGHT_RECEIPT_EXPIRED');
     expect(verifier().verify(args(future)).reasonCode).toBe('PREFLIGHT_RECEIPT_FUTURE');
     expect(verifier().verify(args(crossProject)).reasonCode).toBe('PREFLIGHT_CONTEXT_MISMATCH');
     expect(verifier().verify(args(makeReceipt(keys.privateKey), differentCandidate)).reasonCode).toBe('PREFLIGHT_CANDIDATE_SURFACE_MISMATCH');
+    expect(verifier().verify({ receipt, candidate, candidateContentHash: 'candidate', canonicalizationVersion: 'mnemosyne-exact-surface-v1', preflightSurface: surface, expectedContext: { ...expectedContext, tenantId: 'tenant-b' } }).reasonCode).toBe('PREFLIGHT_CONTEXT_MISMATCH');
+    expect(verifier().verify({ receipt, candidate, candidateContentHash: 'candidate', canonicalizationVersion: 'mnemosyne-exact-surface-v1', preflightSurface: surface, expectedContext: { ...expectedContext, workspaceId: 'workspace-b' } }).reasonCode).toBe('PREFLIGHT_CONTEXT_MISMATCH');
+    expect(verifier().verify({ receipt, candidate, candidateContentHash: 'candidate', canonicalizationVersion: 'mnemosyne-exact-surface-v1', preflightSurface: surface, expectedContext: { projectId: 'project-a', purpose: expectedContext.purpose } }).reasonCode).toBe('PREFLIGHT_CONTEXT_MISMATCH');
   });
 
   it('rejects altered surfaces and canonicalization versions', () => {

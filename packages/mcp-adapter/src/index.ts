@@ -2,7 +2,7 @@ import type { AlmanacStore } from '@mnemosyne/almanac-store';
 import { assertContextWithinRuntimeScope, attributionFromContext, type MnemosyneOperationContext, type MnemosyneRuntimeScope } from '@mnemosyne/adrasteia-adapter';
 import { createAuditEvent, type AuditStore } from '@mnemosyne/audit-engine';
 import { CredentialMaterialDetectedError, CredentialMaterialGuard, MemoryAccessEvaluator, safeCredentialAuditMetadata } from '@mnemosyne/memory-boundary';
-import { deriveExactSurfaceStatement, MemoryIngestEngine, RuntimeContractsPreflightReceiptVerifier, type AdmissionAuthority, type PreflightReceiptVerifier, ProvenanceAdmissionEngine, type RuntimeContractsPreflightReceiptVerifierOptions } from '@mnemosyne/memory-ingest-engine';
+import { deriveExactSurfaceStatement, isStrictAuthenticatedPreflightVerifier, MemoryIngestEngine, RuntimeContractsPreflightReceiptVerifier, type AdmissionAuthority, type PreflightReceiptVerifier, ProvenanceAdmissionEngine, type RuntimeContractsPreflightReceiptVerifierOptions } from '@mnemosyne/memory-ingest-engine';
 import { ReliabilityEngine } from '@mnemosyne/reliability-engine';
 import { RetrievalEngine } from '@mnemosyne/retrieval-engine';
 import { ConflictRecord, MemoryKind, MemoryRecord, type MemoryRecord as MemoryRecordModel } from '@mnemosyne/schema';
@@ -46,16 +46,16 @@ export class McpAlmanacServer {
 
   constructor(private readonly config: McpAlmanacServerConfig) {
     this.governanceMode = config.governanceMode ?? 'strict';
+    this.admissionVerifier = config.admission
+      ? config.admission.preflight ?? new RuntimeContractsPreflightReceiptVerifier({ ...config.admission.verifierOptions, strict: this.governanceMode === 'strict' })
+      : undefined;
     if (this.governanceMode === 'strict') {
       if (!config.admission?.engine || !config.admission.authority) throw new Error('STRICT_MNEMOSYNE_REQUIRES_ADMISSION_AND_AUTHORITY');
-      if (config.admission.preflight && ((config.admission.preflight as { securityMode?: string }).securityMode !== 'AUTHENTICATED' || (config.admission.preflight as { trustRegistryConfigured?: boolean }).trustRegistryConfigured !== true)) throw new Error('STRICT_MNEMOSYNE_REQUIRES_AUTHENTICATED_VERIFIER_AND_TRUST_REGISTRY');
+      if (!isStrictAuthenticatedPreflightVerifier(this.admissionVerifier)) throw new Error('STRICT_MNEMOSYNE_REQUIRES_AUTHENTICATED_VERIFIER_AND_TRUST_REGISTRY');
     }
     this.access = config.accessEvaluator ?? new MemoryAccessEvaluator();
     this.guard = config.credentialGuard ?? new CredentialMaterialGuard();
     this.ingest = config.ingestEngine ?? new MemoryIngestEngine({ now: config.now });
-    this.admissionVerifier = config.admission
-      ? config.admission.preflight ?? new RuntimeContractsPreflightReceiptVerifier({ ...config.admission.verifierOptions, strict: this.governanceMode === 'strict' })
-      : undefined;
   }
 
   listTools(): McpToolDefinition[] { return almanacTools; }
@@ -89,7 +89,11 @@ export class McpAlmanacServer {
 
   private requireContext(value: unknown): MnemosyneOperationContext {
     if (value === undefined || value === null) throw new Error('MNEMOSYNE_CONTEXT_REQUIRED');
-    return assertContextWithinRuntimeScope(value, this.config.runtimeScope);
+    const context = assertContextWithinRuntimeScope(value, this.config.runtimeScope);
+    if (this.governanceMode === 'strict' && (!context.scope.tenantId || !context.scope.workspaceId)) {
+      throw new Error('STRICT_MNEMOSYNE_TRUST_SCOPE_REQUIRED');
+    }
+    return context;
   }
 
   private search(args: unknown, context: MnemosyneOperationContext): McpToolResult {
@@ -165,6 +169,9 @@ export class McpAlmanacServer {
         projectId,
         vaultId: context.scope.workspaceId,
         trustDomain: context.scope.tenantId ?? projectId,
+        tenantId: context.scope.tenantId,
+        workspaceId: context.scope.workspaceId,
+        requestId: context.correlation.requestId,
         actor: { id: context.execution.actingPrincipal.id, kind: context.execution.actingPrincipal.kind },
         receipt: preflightReceipt,
         preflightSurface,
@@ -219,6 +226,23 @@ export class McpAlmanacServer {
     this.access.assertAllowed(context, 'revalidate', memory);
     const assessment = this.reliability.assess(memory, { now: this.config.now?.(), currentSourceHash: input.currentSourceHash, sourceAvailable: input.sourceAvailable, contradictions: input.contradictions, supersededBy: input.supersededBy });
     this.guard.assertSafe(assessment.memory);
+    if (this.governanceMode === 'strict') {
+      const authority = this.config.admission?.authority?.evaluateRevalidation?.({
+        memory: assessment.memory,
+        projectId: context.scope.projectId!,
+        tenantId: context.scope.tenantId,
+        workspaceId: context.scope.workspaceId,
+        purpose: context.purpose,
+        requestId: context.correlation.requestId,
+        correlationId: context.correlation.correlationId,
+        supersededBy: input.supersededBy,
+        currentSourceHash: input.currentSourceHash,
+        sourceAvailable: input.sourceAvailable,
+        contradictions: input.contradictions,
+      });
+      if (!authority) return failure('ADMISSION_AUTHORITY_REQUIRED');
+      if (authority.kind !== 'allowed') return failure(authority.reasonCode);
+    }
     const saved = this.config.store.updateMemory(assessment.memory);
     this.config.audit.record(createAuditEvent('MEMORY_REVALIDATED', auditMetadata(context, { memoryId: saved.id, reasons: assessment.reasons })));
     return success(assessment);
