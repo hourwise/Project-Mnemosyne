@@ -100,6 +100,9 @@ describe('RuntimeContractsPreflightReceiptVerifier', () => {
     ['fake signature', (receipt: Record<string, unknown>) => { receipt.signature = 'hello'; }],
     ['changed surface hash', (receipt: Record<string, unknown>) => { receipt.emittedSurfaceHash = 'sha256:' + 'b'.repeat(64); }],
     ['changed audience', (receipt: Record<string, unknown>) => { receipt.audience = { runtime: 'memory' }; }],
+    ['changed source hash', (receipt: Record<string, any>) => { receipt.observation.source.contentHash = 'sha256:' + 'b'.repeat(64); }],
+    ['changed destination', (receipt: Record<string, any>) => { receipt.context.destination = { runtime: 'memory' }; }],
+    ['changed purpose', (receipt: Record<string, any>) => { receipt.context.purpose = 'summarise for display'; }],
     ['changed expiry', (receipt: Record<string, unknown>) => { receipt.expiresAt = '2026-08-25T12:05:00.000Z'; }],
   ])('rejects a %s mutation', (_name, mutate) => {
     const receipt = makeReceipt(keys.privateKey) as unknown as Record<string, unknown>;
