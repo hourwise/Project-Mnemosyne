@@ -6,7 +6,9 @@ Mnemosyne maintains a local project memory called **The Almanac**. The Almanac s
 
 Mnemosyne has adopted Project Adrasteia Stage-A for portable identity, scope,
 correlation, references, runtime inspection, compatibility and protocol
-negotiation. Shared content preflight and provenance admission remain deferred.
+negotiation. A candidate receipt-gated provenance admission path is implemented;
+its shared Content Surface Preflight verifier remains release-gated by Runtime
+Contracts ownership.
 Untrusted source text stays source evidence, never runtime instruction.
 
 ## Relationship To Ananke
@@ -48,7 +50,7 @@ Mnemosyne has working MVP implementations for its core governed-memory path:
 - A governed, transport-neutral MCP tool surface. It exposes Almanac operations only and never raw filesystem access.
 - Trusted current operation context with separate authenticated and acting principals, bounded project scope, correlation, purpose and historical references that never become authority.
 - Classified memory and portable-output enforcement: restricted records are excluded by default; sensitive access needs a trusted local evaluator; high-confidence credential material is rejected before persistence.
-- Ananke safety notifications for conflicts, missing sources, low-reliability context, and insufficient context. Delivery outcomes are audited and cannot mutate Almanac memory.
+- Ananke safety notifications for conflicts, missing sources, low-reliability context, and insufficient context. Optional receipt-gated writes accept inbound Ananke allow/deny/defer decisions; delivery outcomes are audited and cannot mutate Almanac memory.
 - A Quick validation testbench that checks runtime initialisation, SQLite persistence, and governed context retrieval, then emits JSON and optional CSV reports.
 - A portable-vault foundation with schema-versioned project metadata, human-readable `.mnemosyne/` records, strict project-truth/task-state/performance boundaries, and validated import/export.
 - A model-neutral Restart Pack generator with explicit task scope, source links, stale/low-reliability warnings, deterministic ordering, and token-budget awareness.
@@ -66,9 +68,11 @@ The vault already provides human-readable project records, stable identifiers,
 schema versioning, source and evidence links, and import/export without tying
 project memory to a particular chat model or interface.
 
-The next gated design phase is provenance-aware content admission. It is not
-implemented: there is no shared content-preflight receipt, full provenance
-admission engine, or inbound Ananke decision transport in this release.
+The next gated adoption phase is the shared content-preflight release. The local
+admission engine and inbound authority adapter are implemented, but consumers
+must not replace the immutable Runtime Contracts 0.4.0 pin with a mutable branch;
+strict MCP writes therefore require a host-supplied receipt verifier until the
+accepted shared release is published.
 
 The vault will strictly separate long-lived project truth from temporary task
 state and advisory agent-performance memory. Restart packs will then provide

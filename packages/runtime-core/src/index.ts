@@ -12,6 +12,7 @@ import { MemoryRecord, type MemoryKind, type MemoryRecord as MemoryRecordModel, 
 import { attributionFromContext } from '@mnemosyne/adrasteia-adapter';
 import { SessionEngine } from '@mnemosyne/session-engine';
 import { WorkspaceGuard } from '@mnemosyne/workspace-guard';
+import { ProvenanceAdmissionEngine, type AdmissionAuthority, type PreflightReceiptVerifier } from '@mnemosyne/memory-ingest-engine';
 
 export interface MnemosyneRuntimeConfig {
   projectRoot: string;
@@ -28,6 +29,11 @@ export interface MnemosyneRuntimeConfig {
   vaultRoot?: string;
   vaultOptions?: Pick<PortableVaultStoreOptions, 'now'>;
   sensitiveAccessEvaluator?: TrustedSensitiveAccessEvaluator;
+  admission?: {
+    engine?: ProvenanceAdmissionEngine;
+    preflight: PreflightReceiptVerifier;
+    authority?: AdmissionAuthority;
+  };
 }
 
 /** Scoped composition facade. All memory and portable-output methods require current trusted context. */
@@ -83,7 +89,7 @@ export class MnemosyneRuntime {
   negotiateProtocol(protocolVersion: string, minimumSupportedProtocolVersion: string) { return negotiateProtocol(protocolVersion, minimumSupportedProtocolVersion); }
   inspect(): Record<string, unknown> { return { identity: this.runtimeIdentity(), health: this.runtimeHealth(), readiness: this.runtimeReadiness(), registration: this.runtimeRegistration(), compatibility: this.compatibilityManifest() }; }
   createMcpServer(sourceTextByPath: Record<string, string> = {}): McpAlmanacServer {
-    return new McpAlmanacServer({ store: this.store, audit: this.audit, runtimeScope: this.runtimeScope, accessEvaluator: this.access, credentialGuard: this.credentialGuard, inspection: () => this.inspect(), negotiateProtocol: (version, minimum) => this.negotiateProtocol(version, minimum), sourceTextByPath });
+    return new McpAlmanacServer({ store: this.store, audit: this.audit, runtimeScope: this.runtimeScope, accessEvaluator: this.access, credentialGuard: this.credentialGuard, inspection: () => this.inspect(), negotiateProtocol: (version, minimum) => this.negotiateProtocol(version, minimum), sourceTextByPath, admission: this.config.admission ? { engine: this.config.admission.engine ?? new ProvenanceAdmissionEngine(), preflight: this.config.admission.preflight, authority: this.config.admission.authority } : undefined });
   }
   /** Explicit local-demo helper; it still requires distinct trusted principals and bounded scope. */
   onboardLocalDemo(contextValue: unknown, projectRoot: string): ReturnType<OnboardingEngine['onboard']> {

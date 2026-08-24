@@ -23,6 +23,7 @@
     "@mnemosyne/almanac-store": "*",
     "@mnemosyne/ananke-adapter": "*",
     "@mnemosyne/memory-boundary": "*",
+    "@mnemosyne/memory-ingest-engine": "*",
     "@mnemosyne/mcp-adapter": "*",
     "@mnemosyne/onboarding-engine": "*",
     "@mnemosyne/portable-vault": "*",

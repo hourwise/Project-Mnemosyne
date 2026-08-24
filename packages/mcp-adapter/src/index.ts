@@ -2,7 +2,7 @@ import type { AlmanacStore } from '@mnemosyne/almanac-store';
 import { assertContextWithinRuntimeScope, attributionFromContext, type MnemosyneOperationContext, type MnemosyneRuntimeScope } from '@mnemosyne/adrasteia-adapter';
 import { createAuditEvent, type AuditStore } from '@mnemosyne/audit-engine';
 import { CredentialMaterialDetectedError, CredentialMaterialGuard, MemoryAccessEvaluator, safeCredentialAuditMetadata } from '@mnemosyne/memory-boundary';
-import { MemoryIngestEngine } from '@mnemosyne/memory-ingest-engine';
+import { MemoryIngestEngine, type AdmissionAuthority, type PreflightReceiptVerifier, ProvenanceAdmissionEngine } from '@mnemosyne/memory-ingest-engine';
 import { ReliabilityEngine } from '@mnemosyne/reliability-engine';
 import { RetrievalEngine } from '@mnemosyne/retrieval-engine';
 import { ConflictRecord, MemoryKind, MemoryRecord, type MemoryRecord as MemoryRecordModel } from '@mnemosyne/schema';
@@ -23,6 +23,12 @@ export interface McpAlmanacServerConfig {
   conflicts?: ConflictRecord[] | (() => ConflictRecord[]);
   onConflictReported?: (conflict: ConflictRecord) => void;
   now?: () => string;
+  /** Optional strict write gate. When configured, no memory reaches the store without a receipt. */
+  admission?: {
+    engine: ProvenanceAdmissionEngine;
+    preflight: PreflightReceiptVerifier;
+    authority?: AdmissionAuthority;
+  };
 }
 
 const emptyObjectSchema = { type: 'object', additionalProperties: false };
@@ -117,7 +123,7 @@ export class McpAlmanacServer {
   }
 
   private writeMemory(args: unknown, context: MnemosyneOperationContext): McpToolResult {
-    const { memory } = writeMemoryArgs.parse(args);
+    const { memory, preflightReceipt, idempotencyKey } = writeMemoryArgs.parse(args);
     const attribution = attributionFromContext(context);
     const attributed = MemoryRecord.parse({ ...memory, attribution });
     const enriched = this.ingest.enrich(attributed, {
@@ -127,6 +133,40 @@ export class McpAlmanacServer {
     });
     this.access.assertAllowed(context, findMemory(this.config.store, enriched.id) ? 'update' : 'write', enriched);
     this.guard.assertSafe(enriched);
+
+    if (this.config.admission) {
+      const projectId = context.scope.projectId ?? this.config.runtimeScope.projectId;
+      const admission = this.config.admission.engine.admit({
+        id: enriched.id,
+        kind: enriched.kind,
+        statement: enriched.statement,
+        importance: enriched.importance,
+        source: enriched.source,
+        locator: enriched.locator,
+        tags: enriched.tags,
+      }, {
+        ingestionOperation: 'almanac_write_memory',
+        correlationId: context.correlation.correlationId,
+        causationId: context.correlation.causationId,
+        idempotencyKey: idempotencyKey ?? context.correlation.requestId,
+        projectId,
+        vaultId: context.scope.workspaceId,
+        trustDomain: context.scope.tenantId ?? projectId,
+        actor: { id: context.execution.actingPrincipal.id, kind: context.execution.actingPrincipal.kind },
+        receipt: preflightReceipt,
+        preflight: this.config.admission.preflight,
+        authority: this.config.admission.authority,
+      });
+      if (admission.replayed || admission.admission.state !== 'ADMITTED' || !admission.memory) {
+        if (!admission.replayed) this.config.audit.record(createAuditEvent(admissionAuditEventType(admission.admission.state), auditMetadata(context, { admissionId: admission.admission.admissionId, candidateId: admission.admission.candidateId, state: admission.admission.state, reasonCodes: admission.admission.reasonCodes })));
+        return success({ admission: admission.admission, staged: admission.staged, replayed: admission.replayed });
+      }
+      const admitted = MemoryRecord.parse({ ...admission.memory, status: enriched.status, attribution });
+      const saved = findMemory(this.config.store, admitted.id) ? this.config.store.updateMemory(admitted) : this.config.store.createMemory(admitted);
+      this.config.audit.record(createAuditEvent('MEMORY_ADMITTED', auditMetadata(context, { admissionId: admission.admission.admissionId, candidateId: admission.admission.candidateId, memoryId: saved.id })));
+      return success(saved);
+    }
+
     const saved = findMemory(this.config.store, enriched.id) ? this.config.store.updateMemory(enriched) : this.config.store.createMemory(enriched);
     this.config.audit.record(createAuditEvent('MEMORY_UPDATED', auditMetadata(context, { memoryId: saved.id })));
     return success(saved);
@@ -180,7 +220,7 @@ const searchArgs = z.object({ text: z.string().optional(), tag: z.string().optio
 const contextPackArgs = z.object({ task: z.string().trim().min(1), maxMemories: z.number().int().positive().optional(), tokenBudget: z.number().int().positive().optional(), includeTentative: z.boolean().optional(), includeUnsafe: z.boolean().optional(), includeSourceSnippets: z.boolean().optional() }).strict();
 const memoryIdArgs = z.object({ id: z.string().trim().min(1) }).strict();
 const sourceContextArgs = z.object({ memoryId: z.string().trim().min(1) }).strict();
-const writeMemoryArgs = z.object({ memory: MemoryRecord }).strict();
+const writeMemoryArgs = z.object({ memory: MemoryRecord, preflightReceipt: z.unknown().optional(), idempotencyKey: z.string().trim().min(1).optional() }).strict();
 const journalArgs = z.object({ entry: z.string().trim().min(1) }).strict();
 const reportConflictArgs = z.object({ conflict: ConflictRecord }).strict();
 const revalidateArgs = z.object({ memoryId: z.string().trim().min(1), currentSourceHash: z.string().optional(), sourceAvailable: z.boolean().optional(), contradictions: z.number().int().nonnegative().optional(), supersededBy: z.string().optional() }).strict();
@@ -193,3 +233,6 @@ function auditMetadata(context: MnemosyneOperationContext, metadata: Record<stri
 }
 function success(value: unknown): McpToolResult { return { content: [{ type: 'text', text: JSON.stringify(value) }] }; }
 function failure(message: string): McpToolResult { return { content: [{ type: 'text', text: message }], isError: true }; }
+function admissionAuditEventType(state: 'ADMITTED' | 'REJECTED' | 'DEFERRED' | 'QUARANTINED') {
+  return ({ ADMITTED: 'MEMORY_ADMITTED', REJECTED: 'MEMORY_REJECTED', DEFERRED: 'MEMORY_DEFERRED', QUARANTINED: 'MEMORY_QUARANTINED' } as const)[state];
+}

@@ -41,7 +41,7 @@ Project Adrasteia now supplies stable compatibility shapes used by both projects
 - Health/readiness contract.
 - Cross-runtime audit/event fields.
 
-Project Adrasteia remains contracts-only. Mnemosyne does not move runtime behavior, persistence, scoring, retrieval, conflict detection, context-pack generation, or Almanac storage into that package. The current bridge is outbound advisory-only, carries safe portable correlation/scope metadata when supplied, and has no inbound Ananke decision API.
+Project Adrasteia remains contracts-only. Mnemosyne does not move runtime behavior, persistence, scoring, retrieval, conflict detection, context-pack generation, or Almanac storage into that package. The notification bridge remains outbound advisory-only. The provenance admission engine exposes a separate inbound authority boundary through `CallbackAnankeAdmissionAuthority`: a host supplies Ananke's allow, deny, defer, or retryable-failure decision and Mnemosyne maps it to admission state without evaluating policy itself. The boundary carries normalized preflight evidence and never accepts raw credentials or treats a notification as approval.
 
 ## Future Coordinator
 

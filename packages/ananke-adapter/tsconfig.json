@@ -9,6 +9,7 @@
   "include": ["src"],
   "references": [
     { "path": "../adrasteia-adapter" },
+    { "path": "../memory-ingest-engine" },
     { "path": "../schema" }
   ]
 }

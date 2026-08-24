@@ -1,6 +1,8 @@
 import { createAuditEvent, type AuditStore } from '@mnemosyne/audit-engine';
 import type { MnemosyneOperationContext } from '@mnemosyne/adrasteia-adapter';
 import type { ConflictRecord, ContextPack } from '@mnemosyne/schema';
+import type { AdmissionAuthority, AuthorityVerification, PreflightVerification } from '@mnemosyne/memory-ingest-engine';
+import type { MemoryRecord } from '@mnemosyne/schema';
 
 export type AnankeNotificationReason =
   | 'CONFLICT_DETECTED'
@@ -29,6 +31,31 @@ export class CallbackAnankeAdapter implements AnankeAdapter {
 
   notify(notification: AnankeNotification): Promise<void> {
     return this.callback(notification);
+  }
+}
+
+export type AnankeAdmissionDecision =
+  | { state: 'ALLOW'; decisionId?: string; policyVersion?: string }
+  | { state: 'DENY'; reasonCode: string; decisionId?: string; policyVersion?: string }
+  | { state: 'DEFER'; reasonCode: string; decisionId?: string; policyVersion?: string }
+  | { state: 'FAIL'; reasonCode: string; retryable: boolean; decisionId?: string; policyVersion?: string };
+
+/** Converts an inbound Ananke decision into Mnemosyne's narrow admission authority boundary. */
+export class CallbackAnankeAdmissionAuthority implements AdmissionAuthority {
+  constructor(private readonly callback: (input: {
+    candidate: MemoryRecord;
+    candidateContentHash: string;
+    preflight: Extract<PreflightVerification, { kind: 'verified' }>;
+    projectId: string;
+    trustDomain: string;
+  }) => AnankeAdmissionDecision) {}
+
+  evaluate(input: Parameters<AdmissionAuthority['evaluate']>[0]): AuthorityVerification {
+    const decision = this.callback(input);
+    if (decision.state === 'ALLOW') return { kind: 'allowed', decisionId: decision.decisionId, policyVersion: decision.policyVersion };
+    if (decision.state === 'DENY') return { kind: 'denied', reasonCode: decision.reasonCode, decisionId: decision.decisionId, policyVersion: decision.policyVersion };
+    if (decision.state === 'DEFER') return { kind: 'deferred', reasonCode: decision.reasonCode, decisionId: decision.decisionId, policyVersion: decision.policyVersion };
+    return { kind: 'failed', reasonCode: decision.reasonCode, retryable: decision.retryable, decisionId: decision.decisionId, policyVersion: decision.policyVersion };
   }
 }
 

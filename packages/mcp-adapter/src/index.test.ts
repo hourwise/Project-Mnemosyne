@@ -4,6 +4,7 @@ import { InMemoryAuditStore } from '@mnemosyne/audit-engine';
 import { createTrustedOperationContext } from '@mnemosyne/adrasteia-adapter';
 import { PrincipalKind, ResourceScopeMode } from 'project-runtime-contracts';
 import type { ConflictRecord, MemoryRecord } from '@mnemosyne/schema';
+import { ProvenanceAdmissionEngine } from '@mnemosyne/memory-ingest-engine';
 import { McpAlmanacServer } from './index.js';
 
 const hash = 'sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
@@ -125,6 +126,47 @@ describe('McpAlmanacServer', () => {
 
     expect(server.callTool('filesystem_read', {}).isError).toBe(true);
     expect(server.callTool('almanac_read_memory', { id: 'mem_fact_404' }).isError).toBe(true);
+  });
+
+  it('keeps writes staged until a verified preflight receipt is supplied', () => {
+    const store = new InMemoryAlmanacStore();
+    const audit = new InMemoryAuditStore();
+    const admission = new ProvenanceAdmissionEngine({ now: () => createdAt });
+    const server = new McpAlmanacServer({
+      store,
+      audit,
+      runtimeScope: { projectId: 'project_mnemosyne', runtimeInstanceId: 'runtime_mcp_test' },
+      now: () => createdAt,
+      admission: {
+        engine: admission,
+        preflight: {
+          verify: () => ({
+            kind: 'verified' as const,
+            receiptId: 'receipt_mcp_001', observationId: 'observation_mcp_001', decisionId: 'decision_mcp_001',
+            contractVersion: '1.0.0', ruleSetVersion: 'rules-2026-08', outcome: 'PASS' as const,
+            exposureLevel: 'SELECTED_CONTENT' as const, sourceContentHash: hash, emittedSurfaceHash: hash, truncated: false,
+          }),
+        },
+      },
+    });
+    const context = createTrustedOperationContext({
+      execution: {
+        authenticatedPrincipal: { id: 'service_mcp_test', kind: PrincipalKind.Service },
+        actingPrincipal: { id: 'agent_mcp_test', kind: PrincipalKind.Agent },
+        runtimeId: 'mnemosyne', runtimeInstanceId: 'runtime_mcp_test', sessionId: 'session_mcp_test', projectId: 'project_mnemosyne',
+      },
+      scope: { mode: ResourceScopeMode.Bounded, projectId: 'project_mnemosyne' },
+      purpose: 'mcp_admission_test',
+      correlation: { requestId: 'request_admission_001', correlationId: 'correlation_admission_001' },
+    });
+
+    const deferred = server.callTool('almanac_write_memory', { memory: memory(), idempotencyKey: 'write_001' }, context);
+    expect(parsed(deferred)).toMatchObject({ admission: { state: 'DEFERRED', reasonCodes: ['PREFLIGHT_REQUIRED'] } });
+    expect(store.search({})).toHaveLength(0);
+
+    const admitted = server.callTool('almanac_write_memory', { memory: memory(), idempotencyKey: 'write_002', preflightReceipt: { opaque: true } }, context);
+    expect(parsed(admitted)).toMatchObject({ id: 'mem_fact_001', admission: { state: 'ADMITTED' } });
+    expect(audit.list().map((event) => event.eventType)).toContain('MEMORY_ADMITTED');
   });
 });
 

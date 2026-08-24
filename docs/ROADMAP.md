@@ -17,7 +17,7 @@ Implemented so far:
 | Reliability engine      | Revalidation assessment with trust-change reasons and status transitions.                                                                                  |
 | Retrieval engine        | Task-aware context-pack ranking with warnings, conflict propagation, snippets, and token budgeting.                                                        |
 | Conflict engine         | Structured checks for missing sources, hash changes, untrusted sources, supersession, and user-law conflicts.                                              |
-| MCP and Ananke adapters | Governed Almanac tool surface and outbound, audited Ananke safety notifications.                                                                           |
+| MCP and Ananke adapters | Governed Almanac tool surface, optional receipt-gated writes, inbound Ananke admission decisions, and outbound audited safety notifications. |
 | Portable vault          | Implemented foundation with typed records, human-readable files, validated import/export, and Restart Packs.                                               |
 | Tests                   | Package tests for schemas, stores, workspace guard, onboarding, reliability, retrieval, conflicts, adapters, vault, Restart Packs, runtime, and testbench. |
 
@@ -63,9 +63,11 @@ remains proposed and has no declared superseding relationship with ADR-00XX.
 
 Milestone 11.1 now provides structural provenance-source schemas. The current
 ingest and MCP write boundaries also persist record-level provenance, preserving
-multi-source derivations and claim-level source bindings. Receipt-gated
-admission, inbound Ananke decision handling, and admission storage behavior
-remain to be implemented.
+multi-source derivations and claim-level source bindings. The candidate admission
+implementation now provides the state machine, idempotent candidate identity,
+bounded staging/quarantine isolation, retry identity, and append-only history.
+Its receipt verifier is intentionally an adapter boundary until Runtime Contracts
+owners publish the shared Content Surface Preflight release.
 
 ## Current Build Milestone: Milestone 11 -- Provenance Admission
 
@@ -82,10 +84,21 @@ Completed:
 - The governed MCP write boundary now uses the same ingest engine, so writes
   through the agent-facing path retain source identity and actor attribution.
 
+Current implementation:
+
+- `ProvenanceAdmissionEngine` maps missing, unsupported, failed, mismatched, and
+  insufficient preflight evidence to deferred or quarantined states.
+- `McpAlmanacServer` can enable strict receipt-gated writes; staged candidates do
+  not enter the Almanac store or retrieval path.
+- `CallbackAnankeAdmissionAuthority` maps inbound allow, deny, defer, and retryable
+  failure decisions without making Mnemosyne an action authority.
+- Admission events include candidate/source hashes, operation path, correlation,
+  idempotency, actor, preflight/authority references, state transitions, and sequence.
+
 Next build task:
 
-1. Add receipt-gated admission state and idempotent admission storage once the
-   shared Content Surface Preflight contract is available.
+1. Publish and pin the accepted shared Content Surface Preflight contract, then add
+   a production verifier adapter at the Ananke/Mnemosyne boundary.
 
 Later slices add derivation records, admission-state and audit schemas, Content
 Surface Preflight and inbound Ananke adapter contracts, admission gating,

@@ -1,6 +1,8 @@
 import { MemoryProvenance, MemoryRecord, type Importance, type MemoryKind, type MnemosyneAttribution, type ProvenanceActor, type ProvenanceClaimBinding, type ProvenanceDerivation, type ProvenanceSource, type SourceReference } from '@mnemosyne/schema';
 import { scoreReliability } from '@mnemosyne/scoring-engine';
 
+export * from './admission.js';
+
 export interface CandidateMemory {
   id: string;
   kind: MemoryKind;

@@ -45,6 +45,53 @@ export const MemoryStatus = z.enum([
 ]);
 export type MemoryStatus = z.infer<typeof MemoryStatus>;
 
+/** Admission is deliberately separate from MemoryRecord.status. */
+export const AdmissionState = z.enum(['ADMITTED', 'REJECTED', 'DEFERRED', 'QUARANTINED']);
+export type AdmissionState = z.infer<typeof AdmissionState>;
+
+export const AdmissionReference = z.object({
+  receiptId: NonEmptyString.optional(),
+  observationId: NonEmptyString.optional(),
+  decisionId: NonEmptyString.optional(),
+  contractVersion: NonEmptyString.optional(),
+  implementationVersion: NonEmptyString.optional(),
+  ruleSetVersion: NonEmptyString.optional(),
+  policyProfileId: NonEmptyString.optional(),
+}).optional();
+export type AdmissionReference = z.infer<typeof AdmissionReference>;
+
+export const AuthorityReference = z.object({
+  decisionId: NonEmptyString.optional(),
+  policyVersion: NonEmptyString.optional(),
+  outcome: NonEmptyString.optional(),
+}).optional();
+export type AuthorityReference = z.infer<typeof AuthorityReference>;
+
+/** Durable receipt-gate state; this does not grant retrieval or context visibility by itself. */
+export const MemoryAdmission = z.object({
+  admissionVersion: z.literal('1.0'),
+  admissionId: NonEmptyString,
+  candidateId: NonEmptyString,
+  state: AdmissionState,
+  attempt: z.number().int().positive(),
+  idempotencyKey: NonEmptyString,
+  projectId: NonEmptyString,
+  vaultId: NonEmptyString.optional(),
+  trustDomain: NonEmptyString,
+  candidateContentHash: ContentHash,
+  sourceIdentitySetHash: ContentHash,
+  canonicalizationVersion: NonEmptyString,
+  reasonCodes: z.array(NonEmptyString).min(1),
+  preflight: AdmissionReference,
+  authority: AuthorityReference,
+  occurredAt: ISODateTime,
+}).superRefine((admission, ctx) => {
+  if (admission.state === 'ADMITTED' && !admission.preflight) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['preflight'], message: 'ADMITTED records require preflight evidence' });
+  }
+});
+export type MemoryAdmission = z.infer<typeof MemoryAdmission>;
+
 export const Importance = z.enum(['low', 'medium', 'high', 'critical']);
 export type Importance = z.infer<typeof Importance>;
 
@@ -102,6 +149,39 @@ export const ProvenanceActor = z.object({
   kind: NonEmptyString,
 });
 export type ProvenanceActor = z.infer<typeof ProvenanceActor>;
+
+/** Append-only, correlation-rich admission history record. */
+export const ProvenanceAdmissionEvent = z.object({
+  eventId: EntityId,
+  admissionId: NonEmptyString,
+  attempt: z.number().int().positive(),
+  ingestionOperation: NonEmptyString,
+  ingestionPath: NonEmptyString,
+  correlationId: NonEmptyString,
+  causationId: NonEmptyString.optional(),
+  idempotencyKey: NonEmptyString,
+  projectId: NonEmptyString,
+  vaultId: NonEmptyString.optional(),
+  trustDomain: NonEmptyString,
+  memoryId: EntityId,
+  candidateId: NonEmptyString,
+  actor: ProvenanceActor,
+  sourceIds: z.array(NonEmptyString).min(1),
+  sourceIdentitySetHash: ContentHash,
+  candidateContentHash: ContentHash,
+  canonicalizationVersion: NonEmptyString,
+  previousState: AdmissionState.optional(),
+  state: AdmissionState,
+  reasonCodes: z.array(NonEmptyString).min(1),
+  authority: AuthorityReference,
+  preflight: AdmissionReference,
+  schemaVersion: z.literal('1.0'),
+  occurredAt: ISODateTime,
+  sequence: z.number().int().positive(),
+  parentEventId: EntityId.optional(),
+  revalidationOf: NonEmptyString.optional(),
+});
+export type ProvenanceAdmissionEvent = z.infer<typeof ProvenanceAdmissionEvent>;
 
 /**
  * Portable attribution deliberately reuses canonical Adrasteia identities and
@@ -243,6 +323,8 @@ export const MemoryRecord = z.object({
   attribution: MnemosyneAttribution.optional(),
   /** Optional for legacy records; all new ingest paths populate this envelope. */
   provenance: MemoryProvenance.optional(),
+  /** Optional for legacy records; admission is a separate persistence gate. */
+  admission: MemoryAdmission.optional(),
 }).superRefine((memory, ctx) => {
   if (memory.lastVerifiedAt && memory.lastVerifiedAt < memory.createdAt) {
     ctx.addIssue({
@@ -516,6 +598,11 @@ export const AuditEventType = z.enum([
   'PATH_ESCAPE_DENIED',
   'SESSION_STARTED',
   'SESSION_ENDED',
+  'MEMORY_ADMISSION_ATTEMPTED',
+  'MEMORY_ADMITTED',
+  'MEMORY_REJECTED',
+  'MEMORY_DEFERRED',
+  'MEMORY_QUARANTINED',
 ]);
 export type AuditEventType = z.infer<typeof AuditEventType>;
 
