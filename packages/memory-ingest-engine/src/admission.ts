@@ -38,6 +38,7 @@ export type PreflightVerification =
 /** Mnemosyne consumes normalized evidence and does not reimplement Ananke/scanner contracts. */
 export interface PreflightReceiptVerifier {
   readonly securityMode?: 'AUTHENTICATED' | 'LEGACY';
+  readonly trustRegistryConfigured?: boolean;
   verify(input: {
     receipt: unknown;
     candidate: MemoryRecordModel;
@@ -312,9 +313,11 @@ export class ProvenanceAdmissionEngine {
         state = 'REJECTED';
         reasonCodes = ['PREFLIGHT_RECEIPT_REPLAYED'];
       }
-      const authority = request.authority
-        ? request.authority.evaluate({ candidate: memory, candidateContentHash: identity.candidateContentHash, preflight, projectId: request.projectId, trustDomain: request.trustDomain })
-        : { kind: 'deferred' as const, reasonCode: 'ADMISSION_AUTHORITY_REQUIRED' };
+      const authority = state === 'REJECTED'
+        ? { kind: 'denied' as const, reasonCode: 'PREFLIGHT_RECEIPT_REPLAYED' }
+        : request.authority
+          ? request.authority.evaluate({ candidate: memory, candidateContentHash: identity.candidateContentHash, preflight, projectId: request.projectId, trustDomain: request.trustDomain })
+          : { kind: 'deferred' as const, reasonCode: 'ADMISSION_AUTHORITY_REQUIRED' };
       authorityReference = { decisionId: authority.decisionId, policyVersion: authority.policyVersion, outcome: authority.kind };
       if (state === 'REJECTED') {
         // The receipt cannot be used again, even for the same content under a

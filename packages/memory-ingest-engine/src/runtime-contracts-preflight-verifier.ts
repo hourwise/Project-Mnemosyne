@@ -45,6 +45,7 @@ export interface RuntimeContractsPreflightReceiptVerifierOptions {
 /** Production verifier for authenticated Runtime Contracts receipts. */
 export class RuntimeContractsPreflightReceiptVerifier implements PreflightReceiptVerifier {
   readonly securityMode = 'AUTHENTICATED' as const;
+  readonly trustRegistryConfigured = true as const;
   private readonly strict: boolean;
   private readonly contractVersion: string;
   private readonly maxAgeMs: number | undefined;
@@ -138,6 +139,9 @@ export class RuntimeContractsPreflightReceiptVerifier implements PreflightReceip
 export function deriveExactSurfaceStatement(surface: unknown): string {
   if (typeof surface === 'string') return surface;
   if (surface && typeof surface === 'object' && typeof (surface as { text?: unknown }).text === 'string') return (surface as { text: string }).text;
+  if (surface && typeof surface === 'object' && Array.isArray((surface as { ranges?: unknown }).ranges) && (surface as { ranges: unknown[] }).ranges.every((range) => typeof range === 'string')) {
+    return (surface as { ranges: string[] }).ranges.join('\n');
+  }
   return stableJson(surface);
 }
 

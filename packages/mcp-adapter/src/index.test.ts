@@ -142,6 +142,7 @@ describe('McpAlmanacServer', () => {
         engine: admission,
         preflight: {
           securityMode: 'AUTHENTICATED' as const,
+          trustRegistryConfigured: true,
           verify: () => ({
             kind: 'verified' as const,
             receiptId: 'receipt_mcp_001', observationId: 'observation_mcp_001', decisionId: 'decision_mcp_001',

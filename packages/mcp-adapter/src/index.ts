@@ -48,7 +48,7 @@ export class McpAlmanacServer {
     this.governanceMode = config.governanceMode ?? 'strict';
     if (this.governanceMode === 'strict') {
       if (!config.admission?.engine || !config.admission.authority) throw new Error('STRICT_MNEMOSYNE_REQUIRES_ADMISSION_AND_AUTHORITY');
-      if (config.admission.preflight && (config.admission.preflight as { securityMode?: string }).securityMode !== 'AUTHENTICATED') throw new Error('STRICT_MNEMOSYNE_REQUIRES_AUTHENTICATED_VERIFIER');
+      if (config.admission.preflight && ((config.admission.preflight as { securityMode?: string }).securityMode !== 'AUTHENTICATED' || (config.admission.preflight as { trustRegistryConfigured?: boolean }).trustRegistryConfigured !== true)) throw new Error('STRICT_MNEMOSYNE_REQUIRES_AUTHENTICATED_VERIFIER_AND_TRUST_REGISTRY');
     }
     this.access = config.accessEvaluator ?? new MemoryAccessEvaluator();
     this.guard = config.credentialGuard ?? new CredentialMaterialGuard();
