@@ -2,6 +2,7 @@ import type { AlmanacStore } from '@mnemosyne/almanac-store';
 import { assertContextWithinRuntimeScope, attributionFromContext, type MnemosyneOperationContext, type MnemosyneRuntimeScope } from '@mnemosyne/adrasteia-adapter';
 import { createAuditEvent, type AuditStore } from '@mnemosyne/audit-engine';
 import { CredentialMaterialDetectedError, CredentialMaterialGuard, MemoryAccessEvaluator, safeCredentialAuditMetadata } from '@mnemosyne/memory-boundary';
+import { MemoryIngestEngine } from '@mnemosyne/memory-ingest-engine';
 import { ReliabilityEngine } from '@mnemosyne/reliability-engine';
 import { RetrievalEngine } from '@mnemosyne/retrieval-engine';
 import { ConflictRecord, MemoryKind, MemoryRecord, type MemoryRecord as MemoryRecordModel } from '@mnemosyne/schema';
@@ -15,6 +16,7 @@ export interface McpAlmanacServerConfig {
   runtimeScope: MnemosyneRuntimeScope;
   accessEvaluator?: MemoryAccessEvaluator;
   credentialGuard?: CredentialMaterialGuard;
+  ingestEngine?: MemoryIngestEngine;
   inspection?: () => Record<string, unknown>;
   negotiateProtocol?: (version: string, minimumVersion: string) => unknown;
   sourceTextByPath?: Record<string, string>;
@@ -31,10 +33,12 @@ export class McpAlmanacServer {
   private readonly reliability = new ReliabilityEngine();
   private readonly access: MemoryAccessEvaluator;
   private readonly guard: CredentialMaterialGuard;
+  private readonly ingest: MemoryIngestEngine;
 
   constructor(private readonly config: McpAlmanacServerConfig) {
     this.access = config.accessEvaluator ?? new MemoryAccessEvaluator();
     this.guard = config.credentialGuard ?? new CredentialMaterialGuard();
+    this.ingest = config.ingestEngine ?? new MemoryIngestEngine({ now: config.now });
   }
 
   listTools(): McpToolDefinition[] { return almanacTools; }
@@ -114,10 +118,16 @@ export class McpAlmanacServer {
 
   private writeMemory(args: unknown, context: MnemosyneOperationContext): McpToolResult {
     const { memory } = writeMemoryArgs.parse(args);
-    const attributed = MemoryRecord.parse({ ...memory, attribution: attributionFromContext(context) });
-    this.access.assertAllowed(context, findMemory(this.config.store, attributed.id) ? 'update' : 'write', attributed);
-    this.guard.assertSafe(attributed);
-    const saved = findMemory(this.config.store, attributed.id) ? this.config.store.updateMemory(attributed) : this.config.store.createMemory(attributed);
+    const attribution = attributionFromContext(context);
+    const attributed = MemoryRecord.parse({ ...memory, attribution });
+    const enriched = this.ingest.enrich(attributed, {
+      now: this.config.now?.() ?? attributed.createdAt,
+      submittedBy: { id: context.execution.actingPrincipal.id, kind: context.execution.actingPrincipal.kind },
+      attribution,
+    });
+    this.access.assertAllowed(context, findMemory(this.config.store, enriched.id) ? 'update' : 'write', enriched);
+    this.guard.assertSafe(enriched);
+    const saved = findMemory(this.config.store, enriched.id) ? this.config.store.updateMemory(enriched) : this.config.store.createMemory(enriched);
     this.config.audit.record(createAuditEvent('MEMORY_UPDATED', auditMetadata(context, { memoryId: saved.id })));
     return success(saved);
   }

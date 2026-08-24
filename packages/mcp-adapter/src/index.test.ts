@@ -65,6 +65,7 @@ describe('McpAlmanacServer', () => {
     const source = server.callTool('almanac_request_source_context', { memoryId: 'mem_fact_001' }, context);
 
     expect(saved.isError).toBeUndefined();
+    expect(parsed(saved)).toMatchObject({ provenance: { provenanceVersion: '1.0', sources: [{ sourceLocator: 'docs/ALMANAC_MODEL.md' }] } });
     expect(parsed(searched)).toMatchObject({ records: [{ id: 'mem_fact_001' }] });
     expect(parsed(read)).toMatchObject({ id: 'mem_fact_001' });
     expect(parsed(source)).toEqual({

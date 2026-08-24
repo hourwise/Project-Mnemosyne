@@ -13,6 +13,7 @@ Implemented so far:
 | Almanac store           | In-memory and SQLite-backed store with audit event persistence.                                                                                            |
 | Workspace guard         | Canonical path checks, symlink escape resistance, delete policy checks, and audit hooks.                                                                   |
 | Onboarding engine       | Project scan, source hashing, source typing, candidate memory extraction, optional store persistence.                                                      |
+| Record provenance       | New ingest and MCP write paths attach versioned source envelopes, multi-source derivations, and claim-level bindings.                                  |
 | Reliability engine      | Revalidation assessment with trust-change reasons and status transitions.                                                                                  |
 | Retrieval engine        | Task-aware context-pack ranking with warnings, conflict propagation, snippets, and token budgeting.                                                        |
 | Conflict engine         | Structured checks for missing sources, hash changes, untrusted sources, supersession, and user-law conflicts.                                              |
@@ -60,9 +61,11 @@ fields, reliability separation, and portable-vault batch behavior.
 The earlier [ADR-XXXX: Provenance-Aware Content Ingestion](ADR-XXXX-mnemosyne-provenance-aware-content-ingestion.md)
 remains proposed and has no declared superseding relationship with ADR-00XX.
 
-Milestone 11.1 now provides structural provenance-source schemas. Receipt-gated
-admission, record-level and claim-level provenance, inbound Ananke decision
-handling, and admission storage behavior remain to be implemented.
+Milestone 11.1 now provides structural provenance-source schemas. The current
+ingest and MCP write boundaries also persist record-level provenance, preserving
+multi-source derivations and claim-level source bindings. Receipt-gated
+admission, inbound Ananke decision handling, and admission storage behavior
+remain to be implemented.
 
 ## Current Build Milestone: Milestone 11 -- Provenance Admission
 
@@ -70,10 +73,19 @@ Completed:
 
 - Provenance source schemas: `ProvenanceActor`, `ProvenanceSourceKind`, and
   `ProvenanceSource` in `@mnemosyne/schema`, with focused tests.
+- Record-level provenance schemas: `MemoryProvenance`, claim relations,
+  `ProvenanceClaimBinding`, and `ProvenanceDerivation`, including fail-closed
+  source-reference validation.
+- `MemoryIngestEngine` now emits provenance for onboarding candidates and can
+  enrich legacy-shaped records at a trusted boundary without changing identity
+  or lifecycle status.
+- The governed MCP write boundary now uses the same ingest engine, so writes
+  through the agent-facing path retain source identity and actor attribution.
 
 Next build task:
 
-1. Add claim-level source bindings.
+1. Add receipt-gated admission state and idempotent admission storage once the
+   shared Content Surface Preflight contract is available.
 
 Later slices add derivation records, admission-state and audit schemas, Content
 Surface Preflight and inbound Ananke adapter contracts, admission gating,

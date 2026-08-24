@@ -10,6 +10,7 @@
   "references": [
     { "path": "../schema" },
     { "path": "../adrasteia-adapter" },
-    { "path": "../memory-boundary" }
+    { "path": "../memory-boundary" },
+    { "path": "../memory-ingest-engine" }
   ]
 }

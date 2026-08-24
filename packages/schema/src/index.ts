@@ -146,6 +146,85 @@ export const ProvenanceSource = z.object({
 });
 export type ProvenanceSource = z.infer<typeof ProvenanceSource>;
 
+export const ProvenanceClaimRelation = z.enum([
+  'SUPPORTED_BY',
+  'DERIVED_FROM',
+  'CONTRADICTED_BY',
+  'QUOTED_FROM',
+  'REPORTED_BY',
+]);
+export type ProvenanceClaimRelation = z.infer<typeof ProvenanceClaimRelation>;
+
+export const ProvenanceClaimBinding = z.object({
+  claimId: NonEmptyString,
+  sourceIds: z.array(NonEmptyString).min(1),
+  relation: ProvenanceClaimRelation,
+});
+export type ProvenanceClaimBinding = z.infer<typeof ProvenanceClaimBinding>;
+
+export const ProvenanceDerivationMethod = z.enum([
+  'SUMMARY',
+  'EXTRACTION',
+  'TRANSFORMATION',
+  'INFERENCE',
+  'MERGE',
+  'MIGRATION',
+  'USER_EDIT',
+]);
+export type ProvenanceDerivationMethod = z.infer<typeof ProvenanceDerivationMethod>;
+
+export const ProvenanceDerivation = z.object({
+  derivationId: NonEmptyString,
+  method: ProvenanceDerivationMethod,
+  parentMemoryIds: z.array(EntityId).optional(),
+  sourceIds: z.array(NonEmptyString).min(1),
+  runtimeId: NonEmptyString.optional(),
+  runtimeInstanceId: NonEmptyString.optional(),
+  modelProvider: NonEmptyString.optional(),
+  modelId: NonEmptyString.optional(),
+  toolId: NonEmptyString.optional(),
+  instructionHash: NonEmptyString.optional(),
+  createdAt: ISODateTime,
+});
+export type ProvenanceDerivation = z.infer<typeof ProvenanceDerivation>;
+
+/** Durable record-level provenance. Admission and external preflight remain separate concerns. */
+export const MemoryProvenance = z.object({
+  provenanceVersion: z.literal('1.0'),
+  sources: z.array(ProvenanceSource).min(1),
+  derivation: ProvenanceDerivation.optional(),
+  claimBindings: z.array(ProvenanceClaimBinding).default([]),
+}).superRefine((provenance, ctx) => {
+  const sourceIds = new Set(provenance.sources.map((source) => source.sourceId));
+  if (sourceIds.size !== provenance.sources.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['sources'], message: 'sourceId values must be unique.' });
+  }
+
+  const claimIds = new Set<string>();
+  for (const [index, binding] of provenance.claimBindings.entries()) {
+    if (claimIds.has(binding.claimId)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['claimBindings', index, 'claimId'], message: 'claimId values must be unique.' });
+    }
+    claimIds.add(binding.claimId);
+    for (const sourceId of binding.sourceIds) {
+      if (!sourceIds.has(sourceId)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['claimBindings', index, 'sourceIds'], message: `Unknown provenance source: ${sourceId}` });
+      }
+    }
+  }
+
+  if (provenance.derivation) {
+    for (const sourceId of provenance.derivation.sourceIds) {
+      if (!sourceIds.has(sourceId)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['derivation', 'sourceIds'], message: `Unknown derivation source: ${sourceId}` });
+      }
+    }
+  } else if (provenance.sources.length > 1) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['derivation'], message: 'Multiple provenance sources require derivation metadata.' });
+  }
+});
+export type MemoryProvenance = z.infer<typeof MemoryProvenance>;
+
 export const MemoryRecord = z.object({
   id: EntityId,
   kind: MemoryKind,
@@ -162,6 +241,8 @@ export const MemoryRecord = z.object({
   tags: z.array(NonEmptyString).default([]),
   accessClassification: AccessClassification.default('internal'),
   attribution: MnemosyneAttribution.optional(),
+  /** Optional for legacy records; all new ingest paths populate this envelope. */
+  provenance: MemoryProvenance.optional(),
 }).superRefine((memory, ctx) => {
   if (memory.lastVerifiedAt && memory.lastVerifiedAt < memory.createdAt) {
     ctx.addIssue({

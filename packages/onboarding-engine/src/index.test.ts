@@ -91,6 +91,8 @@ describe('OnboardingEngine', () => {
     expect(result.constraintsFound).toBeGreaterThanOrEqual(2);
     expect(result.memoriesCreated).toBe(result.memories.length);
     expect(result.memories.every((memory) => memory.status === 'tentative')).toBe(true);
+    expect(result.memories.every((memory) => memory.provenance?.provenanceVersion === '1.0')).toBe(true);
+    expect(result.memories.every((memory) => memory.provenance?.sources.length === 1)).toBe(true);
      expect(result.memories.every((memory) => memory.source.path !== '.project-Mnemosyne/almanac/ignored.md'))
       .toBe(true);
   });
