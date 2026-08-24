@@ -2,7 +2,7 @@ import type { AlmanacStore } from '@mnemosyne/almanac-store';
 import { assertContextWithinRuntimeScope, attributionFromContext, type MnemosyneOperationContext, type MnemosyneRuntimeScope } from '@mnemosyne/adrasteia-adapter';
 import { createAuditEvent, type AuditStore } from '@mnemosyne/audit-engine';
 import { CredentialMaterialDetectedError, CredentialMaterialGuard, MemoryAccessEvaluator, safeCredentialAuditMetadata } from '@mnemosyne/memory-boundary';
-import { MemoryIngestEngine, type AdmissionAuthority, type PreflightReceiptVerifier, ProvenanceAdmissionEngine } from '@mnemosyne/memory-ingest-engine';
+import { MemoryIngestEngine, RuntimeContractsPreflightReceiptVerifier, type AdmissionAuthority, type PreflightReceiptVerifier, ProvenanceAdmissionEngine, type RuntimeContractsPreflightReceiptVerifierOptions } from '@mnemosyne/memory-ingest-engine';
 import { ReliabilityEngine } from '@mnemosyne/reliability-engine';
 import { RetrievalEngine } from '@mnemosyne/retrieval-engine';
 import { ConflictRecord, MemoryKind, MemoryRecord, type MemoryRecord as MemoryRecordModel } from '@mnemosyne/schema';
@@ -26,7 +26,8 @@ export interface McpAlmanacServerConfig {
   /** Optional strict write gate. When configured, no memory reaches the store without a receipt. */
   admission?: {
     engine: ProvenanceAdmissionEngine;
-    preflight: PreflightReceiptVerifier;
+    preflight?: PreflightReceiptVerifier;
+    verifierOptions?: RuntimeContractsPreflightReceiptVerifierOptions;
     authority?: AdmissionAuthority;
   };
 }
@@ -40,11 +41,15 @@ export class McpAlmanacServer {
   private readonly access: MemoryAccessEvaluator;
   private readonly guard: CredentialMaterialGuard;
   private readonly ingest: MemoryIngestEngine;
+  private readonly admissionVerifier?: PreflightReceiptVerifier;
 
   constructor(private readonly config: McpAlmanacServerConfig) {
     this.access = config.accessEvaluator ?? new MemoryAccessEvaluator();
     this.guard = config.credentialGuard ?? new CredentialMaterialGuard();
     this.ingest = config.ingestEngine ?? new MemoryIngestEngine({ now: config.now });
+    this.admissionVerifier = config.admission
+      ? config.admission.preflight ?? new RuntimeContractsPreflightReceiptVerifier(config.admission.verifierOptions)
+      : undefined;
   }
 
   listTools(): McpToolDefinition[] { return almanacTools; }
@@ -154,7 +159,7 @@ export class McpAlmanacServer {
         trustDomain: context.scope.tenantId ?? projectId,
         actor: { id: context.execution.actingPrincipal.id, kind: context.execution.actingPrincipal.kind },
         receipt: preflightReceipt,
-        preflight: this.config.admission.preflight,
+        preflight: this.admissionVerifier,
         authority: this.config.admission.authority,
       });
       if (admission.replayed || admission.admission.state !== 'ADMITTED' || !admission.memory) {
