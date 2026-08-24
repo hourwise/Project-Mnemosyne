@@ -22,6 +22,6 @@
     "@mnemosyne/almanac-store": "*",
     "@mnemosyne/runtime-core": "*",
     "@mnemosyne/schema": "*",
-    "project-runtime-contracts": "https://github.com/hourwise/Project-Adrasteia/releases/download/adrasteia-preflight-v0.6.1-protocol-1.4.0/project-runtime-contracts-0.6.1.tgz"
+    "project-runtime-contracts": "https://github.com/hourwise/Project-Adrasteia/releases/download/adrasteia-preflight-v0.6.2-protocol-1.4.0/project-runtime-contracts-0.6.2.tgz"
   }
 }
