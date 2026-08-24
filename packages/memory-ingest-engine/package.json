@@ -20,6 +20,6 @@
   "dependencies": {
     "@mnemosyne/schema": "*",
     "@mnemosyne/scoring-engine": "*",
-    "project-runtime-contracts": "https://github.com/hourwise/Project-Adrasteia/releases/download/adrasteia-preflight-v0.5.0-protocol-1.4.0/project-runtime-contracts-0.5.0.tgz"
+    "project-runtime-contracts": "https://github.com/hourwise/Project-Adrasteia/releases/download/adrasteia-preflight-v0.6.0-protocol-1.4.0/project-runtime-contracts-0.6.0.tgz"
   }
 }

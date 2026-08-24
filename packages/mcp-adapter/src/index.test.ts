@@ -137,9 +137,11 @@ describe('McpAlmanacServer', () => {
       audit,
       runtimeScope: { projectId: 'project_mnemosyne', runtimeInstanceId: 'runtime_mcp_test' },
       now: () => createdAt,
+      governanceMode: 'strict',
       admission: {
         engine: admission,
         preflight: {
+          securityMode: 'AUTHENTICATED' as const,
           verify: () => ({
             kind: 'verified' as const,
             receiptId: 'receipt_mcp_001', observationId: 'observation_mcp_001', decisionId: 'decision_mcp_001',
@@ -147,6 +149,7 @@ describe('McpAlmanacServer', () => {
             exposureLevel: 'SELECTED_CONTENT' as const, sourceContentHash: hash, emittedSurfaceHash: hash, truncated: false,
           }),
         },
+        authority: { evaluate: () => ({ kind: 'allowed' as const, decisionId: 'authority_mcp_001', policyVersion: 'authority-test-v1' }) },
       },
     });
     const context = createTrustedOperationContext({
@@ -160,11 +163,17 @@ describe('McpAlmanacServer', () => {
       correlation: { requestId: 'request_admission_001', correlationId: 'correlation_admission_001' },
     });
 
-    const deferred = server.callTool('almanac_write_memory', { memory: memory(), idempotencyKey: 'write_001' }, context);
-    expect(parsed(deferred)).toMatchObject({ admission: { state: 'DEFERRED', reasonCodes: ['PREFLIGHT_REQUIRED'] } });
+    const missing = server.callTool('almanac_write_memory', { memory: memory(), idempotencyKey: 'write_001' }, context);
+    expect(missing.isError).toBe(true);
+    expect(missing.content[0]?.text).toBe('PREFLIGHT_REQUIRED');
     expect(store.search({})).toHaveLength(0);
 
-    const admitted = server.callTool('almanac_write_memory', { memory: memory(), idempotencyKey: 'write_002', preflightReceipt: { opaque: true } }, context);
+    const admitted = server.callTool('almanac_write_memory', {
+      memory: memory({ statement: 'caller supplied statement must be ignored' }),
+      idempotencyKey: 'write_002',
+      preflightReceipt: { opaque: true },
+      preflightSurface: memory().statement,
+    }, context);
     expect(parsed(admitted)).toMatchObject({ id: 'mem_fact_001', admission: { state: 'ADMITTED' } });
     expect(audit.list().map((event) => event.eventType)).toContain('MEMORY_ADMITTED');
   });
@@ -179,6 +188,7 @@ function createServer(sourceTextByPath?: Record<string, string>, reported: Confl
       store,
       audit,
       runtimeScope: { projectId: 'project_mnemosyne', runtimeInstanceId: 'runtime_mcp_test' },
+      governanceMode: 'development',
       sourceTextByPath,
       now: () => createdAt,
       onConflictReported: (conflict) => reported.push(conflict),

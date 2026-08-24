@@ -2,7 +2,7 @@ import type { AlmanacStore } from '@mnemosyne/almanac-store';
 import { assertContextWithinRuntimeScope, attributionFromContext, type MnemosyneOperationContext, type MnemosyneRuntimeScope } from '@mnemosyne/adrasteia-adapter';
 import { createAuditEvent, type AuditStore } from '@mnemosyne/audit-engine';
 import { CredentialMaterialDetectedError, CredentialMaterialGuard, MemoryAccessEvaluator, safeCredentialAuditMetadata } from '@mnemosyne/memory-boundary';
-import { MemoryIngestEngine, RuntimeContractsPreflightReceiptVerifier, type AdmissionAuthority, type PreflightReceiptVerifier, ProvenanceAdmissionEngine, type RuntimeContractsPreflightReceiptVerifierOptions } from '@mnemosyne/memory-ingest-engine';
+import { deriveExactSurfaceStatement, MemoryIngestEngine, RuntimeContractsPreflightReceiptVerifier, type AdmissionAuthority, type PreflightReceiptVerifier, ProvenanceAdmissionEngine, type RuntimeContractsPreflightReceiptVerifierOptions } from '@mnemosyne/memory-ingest-engine';
 import { ReliabilityEngine } from '@mnemosyne/reliability-engine';
 import { RetrievalEngine } from '@mnemosyne/retrieval-engine';
 import { ConflictRecord, MemoryKind, MemoryRecord, type MemoryRecord as MemoryRecordModel } from '@mnemosyne/schema';
@@ -23,7 +23,7 @@ export interface McpAlmanacServerConfig {
   conflicts?: ConflictRecord[] | (() => ConflictRecord[]);
   onConflictReported?: (conflict: ConflictRecord) => void;
   now?: () => string;
-  /** Optional strict write gate. When configured, no memory reaches the store without a receipt. */
+  governanceMode?: 'strict' | 'development';
   admission?: {
     engine: ProvenanceAdmissionEngine;
     preflight?: PreflightReceiptVerifier;
@@ -42,13 +42,19 @@ export class McpAlmanacServer {
   private readonly guard: CredentialMaterialGuard;
   private readonly ingest: MemoryIngestEngine;
   private readonly admissionVerifier?: PreflightReceiptVerifier;
+  private readonly governanceMode: 'strict' | 'development';
 
   constructor(private readonly config: McpAlmanacServerConfig) {
+    this.governanceMode = config.governanceMode ?? 'strict';
+    if (this.governanceMode === 'strict') {
+      if (!config.admission?.engine || !config.admission.authority) throw new Error('STRICT_MNEMOSYNE_REQUIRES_ADMISSION_AND_AUTHORITY');
+      if (config.admission.preflight && (config.admission.preflight as { securityMode?: string }).securityMode !== 'AUTHENTICATED') throw new Error('STRICT_MNEMOSYNE_REQUIRES_AUTHENTICATED_VERIFIER');
+    }
     this.access = config.accessEvaluator ?? new MemoryAccessEvaluator();
     this.guard = config.credentialGuard ?? new CredentialMaterialGuard();
     this.ingest = config.ingestEngine ?? new MemoryIngestEngine({ now: config.now });
     this.admissionVerifier = config.admission
-      ? config.admission.preflight ?? new RuntimeContractsPreflightReceiptVerifier(config.admission.verifierOptions)
+      ? config.admission.preflight ?? new RuntimeContractsPreflightReceiptVerifier({ ...config.admission.verifierOptions, strict: this.governanceMode === 'strict' })
       : undefined;
   }
 
@@ -128,9 +134,11 @@ export class McpAlmanacServer {
   }
 
   private writeMemory(args: unknown, context: MnemosyneOperationContext): McpToolResult {
-    const { memory, preflightReceipt, idempotencyKey } = writeMemoryArgs.parse(args);
+    const { memory, preflightReceipt, preflightSurface, idempotencyKey } = writeMemoryArgs.parse(args);
+    if (this.governanceMode === 'strict' && (preflightReceipt === undefined || preflightSurface === undefined)) return failure('PREFLIGHT_REQUIRED');
     const attribution = attributionFromContext(context);
-    const attributed = MemoryRecord.parse({ ...memory, attribution });
+    const statement = this.governanceMode === 'strict' ? deriveExactSurfaceStatement(preflightSurface) : memory.statement;
+    const attributed = MemoryRecord.parse({ ...memory, statement, attribution });
     const enriched = this.ingest.enrich(attributed, {
       now: this.config.now?.() ?? attributed.createdAt,
       submittedBy: { id: context.execution.actingPrincipal.id, kind: context.execution.actingPrincipal.kind },
@@ -159,8 +167,18 @@ export class McpAlmanacServer {
         trustDomain: context.scope.tenantId ?? projectId,
         actor: { id: context.execution.actingPrincipal.id, kind: context.execution.actingPrincipal.kind },
         receipt: preflightReceipt,
+        preflightSurface,
         preflight: this.admissionVerifier,
         authority: this.config.admission.authority,
+        expectedContext: {
+          projectId,
+          tenantId: context.scope.tenantId,
+          workspaceId: context.scope.workspaceId,
+          purpose: context.purpose,
+          destinationRuntime: 'mnemosyne',
+          requestId: context.correlation.requestId,
+          correlationId: context.correlation.correlationId,
+        },
       });
       if (admission.replayed || admission.admission.state !== 'ADMITTED' || !admission.memory) {
         if (!admission.replayed) this.config.audit.record(createAuditEvent(admissionAuditEventType(admission.admission.state), auditMetadata(context, { admissionId: admission.admission.admissionId, candidateId: admission.admission.candidateId, state: admission.admission.state, reasonCodes: admission.admission.reasonCodes })));
@@ -172,6 +190,7 @@ export class McpAlmanacServer {
       return success(saved);
     }
 
+    if (this.governanceMode === 'strict') return failure('STRICT_ADMISSION_REQUIRED');
     const saved = findMemory(this.config.store, enriched.id) ? this.config.store.updateMemory(enriched) : this.config.store.createMemory(enriched);
     this.config.audit.record(createAuditEvent('MEMORY_UPDATED', auditMetadata(context, { memoryId: saved.id })));
     return success(saved);
@@ -225,7 +244,7 @@ const searchArgs = z.object({ text: z.string().optional(), tag: z.string().optio
 const contextPackArgs = z.object({ task: z.string().trim().min(1), maxMemories: z.number().int().positive().optional(), tokenBudget: z.number().int().positive().optional(), includeTentative: z.boolean().optional(), includeUnsafe: z.boolean().optional(), includeSourceSnippets: z.boolean().optional() }).strict();
 const memoryIdArgs = z.object({ id: z.string().trim().min(1) }).strict();
 const sourceContextArgs = z.object({ memoryId: z.string().trim().min(1) }).strict();
-const writeMemoryArgs = z.object({ memory: MemoryRecord, preflightReceipt: z.unknown().optional(), idempotencyKey: z.string().trim().min(1).optional() }).strict();
+const writeMemoryArgs = z.object({ memory: MemoryRecord, preflightReceipt: z.unknown().optional(), preflightSurface: z.unknown().optional(), idempotencyKey: z.string().trim().min(1).optional() }).strict();
 const journalArgs = z.object({ entry: z.string().trim().min(1) }).strict();
 const reportConflictArgs = z.object({ conflict: ConflictRecord }).strict();
 const revalidateArgs = z.object({ memoryId: z.string().trim().min(1), currentSourceHash: z.string().optional(), sourceAvailable: z.boolean().optional(), contradictions: z.number().int().nonnegative().optional(), supersededBy: z.string().optional() }).strict();

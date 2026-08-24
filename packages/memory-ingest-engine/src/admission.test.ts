@@ -114,4 +114,21 @@ describe('ProvenanceAdmissionEngine', () => {
     expect(engine.history.listEvents(first.admission.admissionId)).toHaveLength(2);
     expect(engine.history.listStaged()).toHaveLength(0);
   });
+
+  it('fails closed when authority is missing and rejects a consumed receipt on another candidate', () => {
+    const engine = new ProvenanceAdmissionEngine({ now: () => '2026-08-24T12:00:00.000Z' });
+    const noAuthority = engine.admit(candidate, request({ receipt: { opaque: true }, preflight: verifier() }));
+    expect(noAuthority.admission.state).toBe('DEFERRED');
+    expect(noAuthority.admission.reasonCodes).toEqual(['ADMISSION_AUTHORITY_REQUIRED']);
+
+    const allowed = { evaluate: () => ({ kind: 'allowed' as const }) };
+    const first = engine.admit(candidate, request({ idempotencyKey: 'idem-replay-a', receipt: { opaque: true }, preflight: verifier(), authority: allowed }));
+    const differentCandidate = { ...candidate, id: 'mem_fact_admission_002', statement: 'Different candidate content.' };
+    const replay = engine.admit(differentCandidate, request({ idempotencyKey: 'idem-replay-b', receipt: { opaque: true }, preflight: verifier(), authority: allowed }));
+
+    expect(first.admission.state).toBe('ADMITTED');
+    expect(replay.admission.state).toBe('REJECTED');
+    expect(replay.admission.reasonCodes).toEqual(['PREFLIGHT_RECEIPT_REPLAYED']);
+    expect(replay.memory).toBeUndefined();
+  });
 });

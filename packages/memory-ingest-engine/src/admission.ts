@@ -10,12 +10,13 @@ import {
 } from '@mnemosyne/schema';
 import { MemoryIngestEngine, type CandidateMemory } from './index.js';
 
-export const CANDIDATE_CANONICALIZATION_VERSION = 'mnemosyne-candidate-v1';
+export const CANDIDATE_CANONICALIZATION_VERSION = 'mnemosyne-exact-surface-v1';
 
 export type PreflightVerification =
   | {
       kind: 'verified';
       receiptId: string;
+      receiptDigest?: string;
       observationId: string;
       decisionId: string;
       contractVersion: string;
@@ -27,17 +28,31 @@ export type PreflightVerification =
       sourceContentHash: string;
       emittedSurfaceHash?: string;
       truncated: boolean;
+      audienceRuntime?: string;
+      projectId?: string;
+      purpose?: string;
     }
   | { kind: 'unavailable'; reasonCode: string }
   | { kind: 'unsupported'; reasonCode: string };
 
 /** Mnemosyne consumes normalized evidence and does not reimplement Ananke/scanner contracts. */
 export interface PreflightReceiptVerifier {
+  readonly securityMode?: 'AUTHENTICATED' | 'LEGACY';
   verify(input: {
     receipt: unknown;
     candidate: MemoryRecordModel;
     candidateContentHash: string;
     canonicalizationVersion: string;
+    preflightSurface?: unknown;
+    expectedContext?: {
+      projectId: string;
+      tenantId?: string;
+      workspaceId?: string;
+      purpose?: string;
+      destinationRuntime?: string;
+      requestId?: string;
+      correlationId?: string;
+    };
   }): PreflightVerification;
 }
 
@@ -68,8 +83,18 @@ export interface AdmissionRequest {
   trustDomain: string;
   actor: ProvenanceActor;
   receipt?: unknown;
+  preflightSurface?: unknown;
   preflight?: PreflightReceiptVerifier;
   authority?: AdmissionAuthority;
+  expectedContext?: {
+    projectId: string;
+    tenantId?: string;
+    workspaceId?: string;
+    purpose?: string;
+    destinationRuntime?: string;
+    requestId?: string;
+    correlationId?: string;
+  };
 }
 
 export interface AdmissionResult {
@@ -196,6 +221,8 @@ export class ProvenanceAdmissionEngine {
   readonly history: InMemoryAdmissionHistoryStore;
   private readonly now: () => string;
   private readonly ingestEngine: MemoryIngestEngine;
+  /** In-memory replay ledger; a durable deployment must replace this with a durable store. */
+  private readonly consumedReceipts = new Map<string, string>();
 
   constructor(options: ProvenanceAdmissionEngineOptions = {}) {
     this.now = options.now ?? (() => new Date().toISOString());
@@ -247,7 +274,7 @@ export class ProvenanceAdmissionEngine {
     };
 
     const preflight = request.preflight && request.receipt !== undefined
-      ? request.preflight.verify({ receipt: request.receipt, candidate: memory, candidateContentHash: identity.candidateContentHash, canonicalizationVersion: CANDIDATE_CANONICALIZATION_VERSION })
+      ? request.preflight.verify({ receipt: request.receipt, candidate: memory, candidateContentHash: identity.candidateContentHash, canonicalizationVersion: CANDIDATE_CANONICALIZATION_VERSION, preflightSurface: request.preflightSurface, expectedContext: request.expectedContext ?? { projectId: request.projectId, tenantId: request.trustDomain, workspaceId: request.vaultId, requestId: request.correlationId, correlationId: request.correlationId } })
       : { kind: 'unavailable' as const, reasonCode: 'PREFLIGHT_REQUIRED' };
 
     let state: AdmissionState = 'DEFERRED';
@@ -261,7 +288,7 @@ export class ProvenanceAdmissionEngine {
     } else if (preflight.kind === 'unsupported') {
       state = 'QUARANTINED';
       reasonCodes = [preflight.reasonCode];
-    } else if (preflight.sourceContentHash !== identity.primarySourceContentHash) {
+    } else if (!hashesEqual(preflight.sourceContentHash, identity.primarySourceContentHash)) {
       state = 'QUARANTINED';
       reasonCodes = ['PREFLIGHT_SOURCE_HASH_MISMATCH'];
     } else if (!['PASS', 'PASS_WITH_FLAGS'].includes(preflight.outcome)) {
@@ -280,10 +307,20 @@ export class ProvenanceAdmissionEngine {
         ruleSetVersion: preflight.ruleSetVersion,
         policyProfileId: preflight.policyProfileId,
       };
-      const authority = request.authority?.evaluate({ candidate: memory, candidateContentHash: identity.candidateContentHash, preflight, projectId: request.projectId, trustDomain: request.trustDomain })
-        ?? { kind: 'allowed' as const };
+      const replayKey = `${request.projectId}\u0000${request.trustDomain}\u0000${preflight.audienceRuntime ?? 'mnemosyne'}\u0000${preflight.receiptDigest ?? preflight.receiptId}`;
+      if (this.consumedReceipts.has(replayKey)) {
+        state = 'REJECTED';
+        reasonCodes = ['PREFLIGHT_RECEIPT_REPLAYED'];
+      }
+      const authority = request.authority
+        ? request.authority.evaluate({ candidate: memory, candidateContentHash: identity.candidateContentHash, preflight, projectId: request.projectId, trustDomain: request.trustDomain })
+        : { kind: 'deferred' as const, reasonCode: 'ADMISSION_AUTHORITY_REQUIRED' };
       authorityReference = { decisionId: authority.decisionId, policyVersion: authority.policyVersion, outcome: authority.kind };
-      if (authority.kind === 'denied') {
+      if (state === 'REJECTED') {
+        // The receipt cannot be used again, even for the same content under a
+        // different idempotency key. Same-request retries return above from
+        // the idempotency index before reaching this ledger.
+      } else if (authority.kind === 'denied') {
         state = 'REJECTED';
         reasonCodes = [authority.reasonCode];
       } else if (authority.kind === 'deferred' || (authority.kind === 'failed' && authority.retryable)) {
@@ -296,6 +333,7 @@ export class ProvenanceAdmissionEngine {
         state = 'ADMITTED';
         reasonCodes = preflight.outcome === 'PASS_WITH_FLAGS' ? ['PREFLIGHT_PASS_WITH_FLAGS'] : ['PREFLIGHT_PASS'];
         finalMemory = MemoryRecord.parse({ ...memory, admission: { ...base, state, reasonCodes, preflight: preflightReference, authority: authorityReference, occurredAt: this.now() } });
+        this.consumedReceipts.set(replayKey, identity.candidateContentHash);
       }
     }
 
@@ -389,6 +427,10 @@ function shortHash(value: string): string {
 
 function sha256(value: string): string {
   return `sha256:${createHash('sha256').update(value, 'utf8').digest('hex')}`;
+}
+
+function hashesEqual(left: string, right: string): boolean {
+  return left.replace(/^sha256:/, '') === right.replace(/^sha256:/, '');
 }
 
 function stableJson(value: unknown): string {
