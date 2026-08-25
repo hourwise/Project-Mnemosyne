@@ -23,8 +23,16 @@ export type PreflightVerification =
       implementationVersion?: string;
       ruleSetVersion: string;
       policyProfileId?: string;
-      outcome: 'PASS' | 'PASS_WITH_FLAGS' | 'DERIVED_ONLY' | 'QUARANTINED' | 'UNSUPPORTED' | 'RESOURCE_LIMIT_EXCEEDED' | 'INSPECTION_FAILED';
-      exposureLevel: 'NONE' | 'DERIVED_ONLY' | 'SANITIZED_METADATA' | 'SELECTED_CONTENT' | 'FULL_CONTENT';
+      outcome:
+        | 'PASS'
+        | 'PASS_WITH_FLAGS'
+        | 'DERIVED_ONLY'
+        | 'QUARANTINED'
+        | 'UNSUPPORTED'
+        | 'RESOURCE_LIMIT_EXCEEDED'
+        | 'INSPECTION_FAILED';
+      exposureLevel:
+        'NONE' | 'DERIVED_ONLY' | 'SANITIZED_METADATA' | 'SELECTED_CONTENT' | 'FULL_CONTENT';
       sourceContentHash: string;
       emittedSurfaceHash?: string;
       truncated: boolean;
@@ -66,7 +74,13 @@ export type AuthorityVerification =
   | { kind: 'allowed'; decisionId?: string; policyVersion?: string }
   | { kind: 'denied'; reasonCode: string; decisionId?: string; policyVersion?: string }
   | { kind: 'deferred'; reasonCode: string; decisionId?: string; policyVersion?: string }
-  | { kind: 'failed'; reasonCode: string; retryable: boolean; decisionId?: string; policyVersion?: string };
+  | {
+      kind: 'failed';
+      reasonCode: string;
+      retryable: boolean;
+      decisionId?: string;
+      policyVersion?: string;
+    };
 
 export interface AdmissionAuthority {
   evaluate(input: {
@@ -263,8 +277,10 @@ export class ProvenanceAdmissionEngine {
     this.ingestEngine = options.ingest ?? new MemoryIngestEngine({ now: this.now });
     this.maxConsumedReceipts = options.maxConsumedReceipts ?? 4096;
     this.replayEntryTtlMs = options.replayEntryTtlMs ?? 5 * 60 * 1000;
-    if (!Number.isSafeInteger(this.maxConsumedReceipts) || this.maxConsumedReceipts <= 0) throw new TypeError('maxConsumedReceipts must be a positive safe integer');
-    if (!Number.isSafeInteger(this.replayEntryTtlMs) || this.replayEntryTtlMs <= 0) throw new TypeError('replayEntryTtlMs must be a positive safe integer');
+    if (!Number.isSafeInteger(this.maxConsumedReceipts) || this.maxConsumedReceipts <= 0)
+      throw new TypeError('maxConsumedReceipts must be a positive safe integer');
+    if (!Number.isSafeInteger(this.replayEntryTtlMs) || this.replayEntryTtlMs <= 0)
+      throw new TypeError('replayEntryTtlMs must be a positive safe integer');
   }
 
   get replayLedgerSize(): number {
@@ -274,7 +290,7 @@ export class ProvenanceAdmissionEngine {
 
   admit(candidate: CandidateMemory, request: AdmissionRequest): AdmissionResult {
     const identity = buildCandidateIdentity(candidate, request);
-    const scope = idempotencyScope(request);
+    const scope = idempotencyScope(request, identity);
     const existing = this.history.findByIdempotency(scope);
     if (existing) return { ...existing, replayed: true };
 
@@ -282,13 +298,29 @@ export class ProvenanceAdmissionEngine {
     return this.evaluate(candidate, request, identity, admissionId, 1);
   }
 
-  retry(admissionId: string, overrides: Pick<AdmissionRequest, 'receipt' | 'preflight' | 'authority'>): AdmissionResult {
+  retry(
+    admissionId: string,
+    overrides: Pick<AdmissionRequest, 'receipt' | 'preflight' | 'authority'>,
+  ): AdmissionResult {
     const staged = this.history.getStaged(admissionId);
     if (!staged) throw new Error(`ADMISSION_NOT_STAGED:${admissionId}`);
-    const request = { ...staged.request, ...overrides, idempotencyKey: `${staged.request.idempotencyKey}:attempt:${staged.admission.attempt + 1}` };
+    const request = {
+      ...staged.request,
+      ...overrides,
+      idempotencyKey: `${staged.request.idempotencyKey}:attempt:${staged.admission.attempt + 1}`,
+    };
     const identity = buildCandidateIdentity(staged.candidate, request);
-    if (identity.candidateId !== staged.admission.candidateId) throw new Error('ADMISSION_CANDIDATE_ID_CHANGED');
-    return this.evaluate(staged.candidate, request, identity, admissionId, staged.admission.attempt + 1, staged.admission.state, staged.admission.admissionId);
+    if (identity.candidateId !== staged.admission.candidateId)
+      throw new Error('ADMISSION_CANDIDATE_ID_CHANGED');
+    return this.evaluate(
+      staged.candidate,
+      request,
+      identity,
+      admissionId,
+      staged.admission.attempt + 1,
+      staged.admission.state,
+      staged.admission.admissionId,
+    );
   }
 
   private evaluate(
@@ -315,9 +347,24 @@ export class ProvenanceAdmissionEngine {
       canonicalizationVersion: CANDIDATE_CANONICALIZATION_VERSION,
     };
 
-    const preflight = request.preflight && request.receipt !== undefined
-      ? request.preflight.verify({ receipt: request.receipt, candidate: memory, candidateContentHash: identity.candidateContentHash, canonicalizationVersion: CANDIDATE_CANONICALIZATION_VERSION, preflightSurface: request.preflightSurface, expectedContext: request.expectedContext ?? { projectId: request.projectId, tenantId: request.tenantId, workspaceId: request.workspaceId, purpose: request.purpose, requestId: request.requestId, correlationId: request.correlationId } })
-      : { kind: 'unavailable' as const, reasonCode: 'PREFLIGHT_REQUIRED' };
+    const preflight =
+      request.preflight && request.receipt !== undefined
+        ? request.preflight.verify({
+            receipt: request.receipt,
+            candidate: memory,
+            candidateContentHash: identity.candidateContentHash,
+            canonicalizationVersion: CANDIDATE_CANONICALIZATION_VERSION,
+            preflightSurface: request.preflightSurface,
+            expectedContext: request.expectedContext ?? {
+              projectId: request.projectId,
+              tenantId: request.tenantId,
+              workspaceId: request.workspaceId,
+              purpose: request.purpose,
+              requestId: request.requestId,
+              correlationId: request.correlationId,
+            },
+          })
+        : { kind: 'unavailable' as const, reasonCode: 'PREFLIGHT_REQUIRED' };
 
     let state: AdmissionState = 'DEFERRED';
     let reasonCodes: string[] = [];
@@ -349,7 +396,9 @@ export class ProvenanceAdmissionEngine {
         ruleSetVersion: preflight.ruleSetVersion,
         policyProfileId: preflight.policyProfileId,
       };
-      const replayKey = `${request.projectId}\u0000${request.trustDomain}\u0000${preflight.audienceRuntime ?? 'mnemosyne'}\u0000${preflight.receiptDigest ?? preflight.receiptId}`;
+      // Receipt consumption is keyed only by authenticated receipt material.
+      // Caller-selected trustDomain is an operation scope, not replay authority.
+      const replayKey = preflight.receiptDigest ?? preflight.receiptId;
       this.pruneConsumedReceipts();
       const consumed = this.consumedReceipts.get(replayKey);
       const ledgerFull = !consumed && this.consumedReceipts.size >= this.maxConsumedReceipts;
@@ -364,10 +413,20 @@ export class ProvenanceAdmissionEngine {
         ? { kind: 'denied' as const, reasonCode: 'PREFLIGHT_RECEIPT_REPLAYED' }
         : ledgerFull
           ? { kind: 'deferred' as const, reasonCode: 'PREFLIGHT_REPLAY_LEDGER_FULL' }
-        : request.authority
-          ? request.authority.evaluate({ candidate: memory, candidateContentHash: identity.candidateContentHash, preflight, projectId: request.projectId, trustDomain: request.trustDomain })
-          : { kind: 'deferred' as const, reasonCode: 'ADMISSION_AUTHORITY_REQUIRED' };
-      authorityReference = { decisionId: authority.decisionId, policyVersion: authority.policyVersion, outcome: authority.kind };
+          : request.authority
+            ? request.authority.evaluate({
+                candidate: memory,
+                candidateContentHash: identity.candidateContentHash,
+                preflight,
+                projectId: request.projectId,
+                trustDomain: request.trustDomain,
+              })
+            : { kind: 'deferred' as const, reasonCode: 'ADMISSION_AUTHORITY_REQUIRED' };
+      authorityReference = {
+        decisionId: authority.decisionId,
+        policyVersion: authority.policyVersion,
+        outcome: authority.kind,
+      };
       if (consumed || ledgerFull) {
         // The receipt cannot be used again, even for the same content under a
         // different idempotency key. Same-request retries return above from
@@ -375,7 +434,10 @@ export class ProvenanceAdmissionEngine {
       } else if (authority.kind === 'denied') {
         state = 'REJECTED';
         reasonCodes = [authority.reasonCode];
-      } else if (authority.kind === 'deferred' || (authority.kind === 'failed' && authority.retryable)) {
+      } else if (
+        authority.kind === 'deferred' ||
+        (authority.kind === 'failed' && authority.retryable)
+      ) {
         state = 'DEFERRED';
         reasonCodes = [authority.reasonCode];
       } else if (authority.kind === 'failed') {
@@ -383,8 +445,21 @@ export class ProvenanceAdmissionEngine {
         reasonCodes = [authority.reasonCode];
       } else {
         state = 'ADMITTED';
-        reasonCodes = preflight.outcome === 'PASS_WITH_FLAGS' ? ['PREFLIGHT_PASS_WITH_FLAGS'] : ['PREFLIGHT_PASS'];
-        finalMemory = MemoryRecord.parse({ ...memory, admission: { ...base, state, reasonCodes, preflight: preflightReference, authority: authorityReference, occurredAt: this.now() } });
+        reasonCodes =
+          preflight.outcome === 'PASS_WITH_FLAGS'
+            ? ['PREFLIGHT_PASS_WITH_FLAGS']
+            : ['PREFLIGHT_PASS'];
+        finalMemory = MemoryRecord.parse({
+          ...memory,
+          admission: {
+            ...base,
+            state,
+            reasonCodes,
+            preflight: preflightReference,
+            authority: authorityReference,
+            occurredAt: this.now(),
+          },
+        });
         this.consumedReceipts.set(replayKey, {
           candidateContentHash: identity.candidateContentHash,
           expiresAtMs: this.replayExpiry(preflight.expiresAt),
@@ -392,16 +467,30 @@ export class ProvenanceAdmissionEngine {
       }
     }
 
-    const admission = MemoryAdmission.parse({ ...base, state, reasonCodes, preflight: preflightReference, authority: authorityReference, occurredAt: this.now() });
-    const result: AdmissionResult = { admission, memory: finalMemory, replayed: false, staged: state !== 'ADMITTED' };
-    this.history.save(idempotencyScope(request), result);
+    const admission = MemoryAdmission.parse({
+      ...base,
+      state,
+      reasonCodes,
+      preflight: preflightReference,
+      authority: authorityReference,
+      occurredAt: this.now(),
+    });
+    const result: AdmissionResult = {
+      admission,
+      memory: finalMemory,
+      replayed: false,
+      staged: state !== 'ADMITTED',
+    };
+    this.history.save(idempotencyScope(request, identity), result);
     if (state === 'ADMITTED') {
       this.history.removeStaged(admissionId);
     } else {
       const expiresAt = this.history.stagingExpiry(admission.occurredAt);
       this.history.stage(admissionId, { candidate, request, admission, expiresAt });
     }
-    this.history.append(this.auditEvent(candidate, request, identity, admission, previousState, revalidationOf));
+    this.history.append(
+      this.auditEvent(candidate, request, identity, admission, previousState, revalidationOf),
+    );
     return result;
   }
 
@@ -417,7 +506,14 @@ export class ProvenanceAdmissionEngine {
     }
   }
 
-  private auditEvent(candidate: CandidateMemory, request: AdmissionRequest, identity: CandidateIdentity, admission: MemoryAdmission, previousState?: AdmissionState, revalidationOf?: string): ProvenanceAdmissionEvent {
+  private auditEvent(
+    candidate: CandidateMemory,
+    request: AdmissionRequest,
+    identity: CandidateIdentity,
+    admission: MemoryAdmission,
+    previousState?: AdmissionState,
+    revalidationOf?: string,
+  ): ProvenanceAdmissionEvent {
     return ProvenanceAdmissionEvent.parse({
       eventId: `admission_event_${identity.candidateId.slice('candidate_'.length)}_${admission.attempt}`,
       admissionId: admission.admissionId,
@@ -433,7 +529,9 @@ export class ProvenanceAdmissionEngine {
       memoryId: candidate.id,
       candidateId: admission.candidateId,
       actor: request.actor,
-      sourceIds: (candidate.sources ?? [candidate.source]).map((source) => `${source.artifactId}:${source.path}:${source.contentHash}`),
+      sourceIds: (candidate.sources ?? [candidate.source]).map(
+        (source) => `${source.artifactId}:${source.path}:${source.contentHash}`,
+      ),
       sourceIdentitySetHash: admission.sourceIdentitySetHash,
       candidateContentHash: admission.candidateContentHash,
       canonicalizationVersion: admission.canonicalizationVersion,
@@ -445,7 +543,9 @@ export class ProvenanceAdmissionEngine {
       schemaVersion: '1.0',
       occurredAt: admission.occurredAt,
       sequence: this.history.nextSequence(),
-      parentEventId: previousState ? this.history.listEvents(admission.admissionId).at(-1)?.eventId : undefined,
+      parentEventId: previousState
+        ? this.history.listEvents(admission.admissionId).at(-1)?.eventId
+        : undefined,
       revalidationOf,
     });
   }
@@ -458,9 +558,17 @@ interface CandidateIdentity {
   primarySourceContentHash: string;
 }
 
-function buildCandidateIdentity(candidate: CandidateMemory, request: AdmissionRequest): CandidateIdentity {
+function buildCandidateIdentity(
+  candidate: CandidateMemory,
+  request: AdmissionRequest,
+): CandidateIdentity {
   const sources = [candidate.source, ...(candidate.sources ?? [])]
-    .map((source) => ({ artifactId: source.artifactId, path: source.path, contentHash: source.contentHash, sourceType: source.sourceType }))
+    .map((source) => ({
+      artifactId: source.artifactId,
+      path: source.path,
+      contentHash: source.contentHash,
+      sourceType: source.sourceType,
+    }))
     .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
   const sourceIdentitySetHash = sha256(stableJson(sources));
   const canonical = {
@@ -484,8 +592,22 @@ function buildCandidateIdentity(candidate: CandidateMemory, request: AdmissionRe
   };
 }
 
-function idempotencyScope(request: AdmissionRequest): string {
-  return `${request.projectId}\u0000${request.trustDomain}\u0000${request.idempotencyKey}`;
+function idempotencyScope(request: AdmissionRequest, identity: CandidateIdentity): string {
+  return stableJson({
+    ingestionOperation: request.ingestionOperation,
+    ingestionPath: request.ingestionPath,
+    projectId: request.projectId,
+    vaultId: request.vaultId,
+    trustDomain: request.trustDomain,
+    tenantId: request.tenantId,
+    workspaceId: request.workspaceId,
+    purpose: request.purpose,
+    actor: request.actor,
+    idempotencyKey: request.idempotencyKey,
+    candidateId: identity.candidateId,
+    candidateContentHash: identity.candidateContentHash,
+    sourceIdentitySetHash: identity.sourceIdentitySetHash,
+  });
 }
 
 function shortHash(value: string): string {
@@ -503,7 +625,10 @@ function hashesEqual(left: string, right: string): boolean {
 function stableJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
   if (value && typeof value === 'object') {
-    return `{${Object.entries(value as Record<string, unknown>).sort(([left], [right]) => left.localeCompare(right)).map(([key, entry]) => `${JSON.stringify(key)}:${stableJson(entry)}`).join(',')}}`;
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => `${JSON.stringify(key)}:${stableJson(entry)}`)
+      .join(',')}}`;
   }
   return JSON.stringify(value);
 }
