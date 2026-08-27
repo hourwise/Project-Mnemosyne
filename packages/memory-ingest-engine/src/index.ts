@@ -2,6 +2,7 @@ import { MemoryProvenance, MemoryRecord, type Importance, type MemoryKind, type 
 import { scoreReliability } from '@mnemosyne/scoring-engine';
 
 export * from './admission.js';
+export * from './durable-admission.js';
 export * from './runtime-contracts-preflight-verifier.js';
 
 export interface CandidateMemory {

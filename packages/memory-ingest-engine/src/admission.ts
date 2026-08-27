@@ -151,7 +151,7 @@ export interface StagedAdmissionSummary {
   reasonCodes: string[];
 }
 
-interface StagedAdmission {
+export interface StagedAdmission {
   candidate: CandidateMemory;
   request: AdmissionRequest;
   admission: MemoryAdmission;
@@ -164,11 +164,35 @@ export interface AdmissionHistoryStoreOptions {
   stagingTtlMs?: number;
 }
 
+export interface ConsumedReceiptEntry {
+  candidateContentHash: string;
+  expiresAtMs: number;
+}
+
+export interface AdmissionHistoryStore {
+  findByIdempotency(scope: string): AdmissionResult | undefined;
+  get(admissionId: string): AdmissionResult | undefined;
+  save(scope: string, result: AdmissionResult): void;
+  stage(admissionId: string, staged: StagedAdmission): boolean;
+  getStaged(admissionId: string): StagedAdmission | undefined;
+  removeStaged(admissionId: string): void;
+  listStaged(): StagedAdmissionSummary[];
+  append(event: ProvenanceAdmissionEvent): void;
+  listEvents(admissionId?: string): ProvenanceAdmissionEvent[];
+  nextSequence(): number;
+  stagingExpiry(occurredAt: string): string;
+  transaction<T>(operation: () => T): T;
+  getConsumedReceipt(replayKey: string): ConsumedReceiptEntry | undefined;
+  consumeReceipt(replayKey: string, entry: ConsumedReceiptEntry, maxEntries: number): boolean;
+  pruneConsumedReceipts(nowMs: number): void;
+  replayLedgerSize(nowMs: number): number;
+}
+
 /**
  * Bounded, isolated admission history. Staged candidates never enter the
  * AlmanacStore and therefore cannot be returned by retrieval or context APIs.
  */
-export class InMemoryAdmissionHistoryStore {
+export class InMemoryAdmissionHistoryStore implements AdmissionHistoryStore {
   private readonly now: () => string;
   private readonly maxStagedEntries: number;
   private readonly stagingTtlMs: number;
@@ -176,6 +200,7 @@ export class InMemoryAdmissionHistoryStore {
   private readonly idempotency = new Map<string, AdmissionResult>();
   private readonly staged = new Map<string, StagedAdmission>();
   private readonly events: ProvenanceAdmissionEvent[] = [];
+  private readonly consumedReceipts = new Map<string, ConsumedReceiptEntry>();
 
   constructor(options: AdmissionHistoryStoreOptions = {}) {
     this.now = options.now ?? (() => new Date().toISOString());
@@ -240,6 +265,33 @@ export class InMemoryAdmissionHistoryStore {
     return new Date(Date.parse(occurredAt) + this.stagingTtlMs).toISOString();
   }
 
+  transaction<T>(operation: () => T): T {
+    return operation();
+  }
+
+  getConsumedReceipt(replayKey: string): ConsumedReceiptEntry | undefined {
+    this.pruneConsumedReceipts(Date.parse(this.now()));
+    return this.consumedReceipts.get(replayKey);
+  }
+
+  consumeReceipt(replayKey: string, entry: ConsumedReceiptEntry, maxEntries: number): boolean {
+    this.pruneConsumedReceipts(Date.parse(this.now()));
+    if (this.consumedReceipts.has(replayKey) || this.consumedReceipts.size >= maxEntries) return false;
+    this.consumedReceipts.set(replayKey, { ...entry });
+    return true;
+  }
+
+  pruneConsumedReceipts(nowMs: number): void {
+    for (const [key, entry] of this.consumedReceipts) {
+      if (entry.expiresAtMs <= nowMs) this.consumedReceipts.delete(key);
+    }
+  }
+
+  replayLedgerSize(nowMs: number): number {
+    this.pruneConsumedReceipts(nowMs);
+    return this.consumedReceipts.size;
+  }
+
   private pruneExpired(): void {
     const now = Date.parse(this.now());
     for (const [admissionId, entry] of this.staged) {
@@ -250,24 +302,17 @@ export class InMemoryAdmissionHistoryStore {
 
 export interface ProvenanceAdmissionEngineOptions {
   now?: () => string;
-  history?: InMemoryAdmissionHistoryStore;
+  history?: AdmissionHistoryStore;
   ingest?: MemoryIngestEngine;
   maxConsumedReceipts?: number;
   replayEntryTtlMs?: number;
 }
 
-interface ConsumedReceiptEntry {
-  candidateContentHash: string;
-  expiresAtMs: number;
-}
-
 /** Receipt-gated persistence admission with deterministic identity and retry semantics. */
 export class ProvenanceAdmissionEngine {
-  readonly history: InMemoryAdmissionHistoryStore;
+  readonly history: AdmissionHistoryStore;
   private readonly now: () => string;
   private readonly ingestEngine: MemoryIngestEngine;
-  /** Bounded single-process replay ledger; durable multi-process replay is not claimed. */
-  private readonly consumedReceipts = new Map<string, ConsumedReceiptEntry>();
   private readonly maxConsumedReceipts: number;
   private readonly replayEntryTtlMs: number;
 
@@ -284,11 +329,14 @@ export class ProvenanceAdmissionEngine {
   }
 
   get replayLedgerSize(): number {
-    this.pruneConsumedReceipts();
-    return this.consumedReceipts.size;
+    return this.history.replayLedgerSize(Date.parse(this.now()));
   }
 
   admit(candidate: CandidateMemory, request: AdmissionRequest): AdmissionResult {
+    return this.history.transaction(() => this.admitInternal(candidate, request));
+  }
+
+  private admitInternal(candidate: CandidateMemory, request: AdmissionRequest): AdmissionResult {
     const identity = buildCandidateIdentity(candidate, request);
     const scope = idempotencyScope(request, identity);
     const existing = this.history.findByIdempotency(scope);
@@ -299,6 +347,13 @@ export class ProvenanceAdmissionEngine {
   }
 
   retry(
+    admissionId: string,
+    overrides: Pick<AdmissionRequest, 'receipt' | 'preflight' | 'authority'>,
+  ): AdmissionResult {
+    return this.history.transaction(() => this.retryInternal(admissionId, overrides));
+  }
+
+  private retryInternal(
     admissionId: string,
     overrides: Pick<AdmissionRequest, 'receipt' | 'preflight' | 'authority'>,
   ): AdmissionResult {
@@ -399,9 +454,9 @@ export class ProvenanceAdmissionEngine {
       // Receipt consumption is keyed only by authenticated receipt material.
       // Caller-selected trustDomain is an operation scope, not replay authority.
       const replayKey = preflight.receiptDigest ?? preflight.receiptId;
-      this.pruneConsumedReceipts();
-      const consumed = this.consumedReceipts.get(replayKey);
-      const ledgerFull = !consumed && this.consumedReceipts.size >= this.maxConsumedReceipts;
+      this.history.pruneConsumedReceipts(Date.parse(this.now()));
+      const consumed = this.history.getConsumedReceipt(replayKey);
+      const ledgerFull = !consumed && this.history.replayLedgerSize(Date.parse(this.now())) >= this.maxConsumedReceipts;
       if (consumed) {
         state = 'REJECTED';
         reasonCodes = ['PREFLIGHT_RECEIPT_REPLAYED'];
@@ -460,10 +515,14 @@ export class ProvenanceAdmissionEngine {
             occurredAt: this.now(),
           },
         });
-        this.consumedReceipts.set(replayKey, {
+        const consumed = this.history.consumeReceipt(replayKey, {
           candidateContentHash: identity.candidateContentHash,
           expiresAtMs: this.replayExpiry(preflight.expiresAt),
-        });
+        }, this.maxConsumedReceipts);
+        if (!consumed) {
+          state = 'DEFERRED';
+          reasonCodes = ['PREFLIGHT_REPLAY_LEDGER_FULL'];
+        }
       }
     }
 
@@ -499,13 +558,6 @@ export class ProvenanceAdmissionEngine {
     return Number.isFinite(parsed) ? parsed : Date.parse(this.now()) + this.replayEntryTtlMs;
   }
 
-  private pruneConsumedReceipts(): void {
-    const now = Date.parse(this.now());
-    for (const [key, entry] of this.consumedReceipts) {
-      if (entry.expiresAtMs <= now) this.consumedReceipts.delete(key);
-    }
-  }
-
   private auditEvent(
     candidate: CandidateMemory,
     request: AdmissionRequest,
@@ -515,7 +567,7 @@ export class ProvenanceAdmissionEngine {
     revalidationOf?: string,
   ): ProvenanceAdmissionEvent {
     return ProvenanceAdmissionEvent.parse({
-      eventId: `admission_event_${identity.candidateId.slice('candidate_'.length)}_${admission.attempt}`,
+      eventId: `admission_event_${admission.admissionId}_${admission.attempt}`,
       admissionId: admission.admissionId,
       attempt: admission.attempt,
       ingestionOperation: request.ingestionOperation,
