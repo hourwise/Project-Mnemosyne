@@ -160,6 +160,51 @@ describe('durable admission and receipt replay', () => {
     expect(replay.admission.reasonCodes).toEqual(['PREFLIGHT_RECEIPT_REPLAYED']);
   });
 
+  it('preserves completed results but rejects expired authority after a restart before admission', () => {
+    const completedFile = stateFile();
+    let completedNow = '2026-08-27T12:00:00.000Z';
+    const completedVerifier: PreflightReceiptVerifier = {
+      verify: () => ({ ...verifier.verify({} as never), expiresAt: '2026-08-27T13:00:00.000Z' }),
+    };
+    const completedRequest = request({ preflight: completedVerifier });
+    const completed = new ProvenanceAdmissionEngine({
+      now: () => completedNow,
+      history: new DurableAdmissionHistoryStore({ filePath: completedFile, now: () => completedNow }),
+    }).admit(candidate, completedRequest);
+    expect(completed.admission.state).toBe('ADMITTED');
+    completedNow = '2026-08-27T14:00:00.000Z';
+    const completedReplay = new ProvenanceAdmissionEngine({
+      now: () => completedNow,
+      history: new DurableAdmissionHistoryStore({ filePath: completedFile, now: () => completedNow }),
+    }).admit(candidate, completedRequest);
+    expect(completedReplay.replayed).toBe(true);
+    expect(completedReplay.admission.state).toBe('ADMITTED');
+
+    const deferredFile = stateFile();
+    let deferredNow = '2026-08-27T12:00:00.000Z';
+    const deferredAuthority = { evaluate: () => ({ kind: 'deferred' as const, reasonCode: 'ANANKE_UNAVAILABLE' }) };
+    const deferredRequest = request({ authority: deferredAuthority, preflight: completedVerifier });
+    const deferred = new ProvenanceAdmissionEngine({
+      now: () => deferredNow,
+      history: new DurableAdmissionHistoryStore({ filePath: deferredFile, now: () => deferredNow, stagingTtlMs: 4 * 60 * 60 * 1000 }),
+    }).admit(candidate, deferredRequest);
+    expect(deferred.admission.state).toBe('DEFERRED');
+    deferredNow = '2026-08-27T14:00:00.000Z';
+    const expiredVerifier: PreflightReceiptVerifier = {
+      verify: () => ({ kind: 'unsupported', reasonCode: 'PREFLIGHT_RECEIPT_EXPIRED' }),
+    };
+    const expired = new ProvenanceAdmissionEngine({
+      now: () => deferredNow,
+      history: new DurableAdmissionHistoryStore({ filePath: deferredFile, now: () => deferredNow, stagingTtlMs: 4 * 60 * 60 * 1000 }),
+    }).retry(deferred.admission.admissionId, {
+      receipt: { signed: true },
+      preflight: expiredVerifier,
+      authority: request().authority!,
+    });
+    expect(expired.admission.state).toBe('QUARANTINED');
+    expect(expired.admission.reasonCodes).toEqual(['PREFLIGHT_RECEIPT_EXPIRED']);
+  });
+
   it.each([
     ['malformed admission result', (document: any) => { document.admissions[0].result = null; }],
     ['conflicting idempotency record', (document: any) => { document.admissions.push({ ...document.admissions[0] }); }],
