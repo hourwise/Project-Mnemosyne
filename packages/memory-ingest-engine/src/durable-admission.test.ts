@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -82,6 +83,26 @@ function engine(filePath: string, authority = request().authority): ProvenanceAd
   });
 }
 
+function rewriteState(filePath: string, mutate: (document: any) => void): void {
+  const document = JSON.parse(readFileSync(filePath, 'utf8'));
+  mutate(document);
+  const unsigned = {
+    schemaVersion: document.schemaVersion,
+    admissions: document.admissions,
+    staged: document.staged,
+    events: document.events,
+    consumedReceipts: document.consumedReceipts,
+  };
+  document.checksum = `sha256:${createHash('sha256').update(stableJson(unsigned), 'utf8').digest('hex')}`;
+  writeFileSync(filePath, JSON.stringify(document), 'utf8');
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (value && typeof value === 'object') return `{${Object.entries(value as Record<string, unknown>).filter(([, entry]) => entry !== undefined).sort(([left], [right]) => left.localeCompare(right)).map(([key, entry]) => `${JSON.stringify(key)}:${stableJson(entry)}`).join(',')}}`;
+  return JSON.stringify(value);
+}
+
 describe('durable admission and receipt replay', () => {
   it('reconstructs admission and receipt-consumption state in a fresh engine', () => {
     const filePath = stateFile();
@@ -137,5 +158,17 @@ describe('durable admission and receipt replay', () => {
     const replay = engine(filePath).admit(candidate, request({ trustDomain: 'attacker-selected-domain', idempotencyKey: 'other-key' }));
     expect(replay.admission.state).toBe('REJECTED');
     expect(replay.admission.reasonCodes).toEqual(['PREFLIGHT_RECEIPT_REPLAYED']);
+  });
+
+  it.each([
+    ['malformed admission result', (document: any) => { document.admissions[0].result = null; }],
+    ['conflicting idempotency record', (document: any) => { document.admissions.push({ ...document.admissions[0] }); }],
+    ['conflicting audit event', (document: any) => { document.events.push({ ...document.events[0] }); }],
+    ['malformed receipt ledger entry', (document: any) => { document.consumedReceipts[0].entry.expiresAtMs = 'not-a-number'; }],
+  ] as const)('fails closed on persisted %s', (_label, mutate) => {
+    const filePath = stateFile();
+    engine(filePath).admit(candidate, request());
+    rewriteState(filePath, mutate);
+    expect(() => engine(filePath).replayLedgerSize).toThrow(DurableAdmissionStateError);
   });
 });
