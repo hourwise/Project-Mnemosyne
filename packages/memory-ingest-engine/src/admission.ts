@@ -342,7 +342,7 @@ export class ProvenanceAdmissionEngine {
     const existing = this.history.findByIdempotency(scope);
     if (existing) return { ...existing, replayed: true };
 
-    const admissionId = `admission_${identity.candidateId.slice('candidate_'.length)}_${shortHash(request.idempotencyKey)}`;
+    const admissionId = `admission_${identity.candidateId.slice('candidate_'.length)}_${shortHash(scope)}`;
     return this.evaluate(candidate, request, identity, admissionId, 1);
   }
 
